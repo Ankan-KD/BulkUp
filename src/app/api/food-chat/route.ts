@@ -1,6 +1,9 @@
 import { parseFoodEntry } from "@/lib/parseFood";
 import { FoodTemplate } from "@/lib/types";
+import { FOOD_ICON_OPTIONS } from "@/lib/iconKeys";
 import { NextRequest, NextResponse } from "next/server";
+
+const ICON_KEYS = FOOD_ICON_OPTIONS.map((o) => o.key);
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -22,6 +25,7 @@ interface ChatAction {
   fats?: number;
   aliases?: string[];
   category?: string;
+  customCategory?: string;
   baseIngredient?: string;
 }
 
@@ -44,7 +48,7 @@ const RESPONSE_SCHEMA = {
           type: { type: "string", enum: ["log_existing", "create_and_log"] },
           foodId: { type: "string" },
           name: { type: "string" },
-          emoji: { type: "string" },
+          emoji: { type: "string", enum: ICON_KEYS },
           quantityConsumed: { type: "number" },
           unit: { type: "string", enum: ["g", "ml", "count", "serving", "oz"] },
           kind: { type: "string", enum: ["binary", "quantity"] },
@@ -56,8 +60,9 @@ const RESPONSE_SCHEMA = {
           aliases: { type: "array", items: { type: "string" } },
           category: {
             type: "string",
-            enum: ["protein", "grain", "vegetable", "fruit", "dairy", "fat", "other"],
+            enum: ["protein", "grain", "vegetable", "fruit", "dairy", "fat", "custom", "other"],
           },
+          customCategory: { type: "string" },
           baseIngredient: { type: "string" },
         },
         required: ["type", "name", "quantityConsumed"],
@@ -75,7 +80,7 @@ function buildSystemPrompt(foods: FoodTemplate[]) {
           (f) =>
             `- id="${f.id}" name="${f.name}" baseIngredient="${f.baseIngredient || f.name.toLowerCase()}" aliases=[${f.aliases.join(
               ", "
-            )}] category=${f.category} kind=${f.kind} unit=${f.unit} targetQuantity=${f.targetQuantity} nutrition(cal/protein/carbs/fats per ${
+            )}] category=${f.category === "custom" ? `custom:${f.customCategory}` : f.category} kind=${f.kind} unit=${f.unit} targetQuantity=${f.targetQuantity} nutrition(cal/protein/carbs/fats per ${
               f.kind === "binary" || f.unit === "serving" ? "the whole target (i.e. per full serving)" : "1 " + f.unit
             })=${f.calories}/${f.protein}/${f.carbs}/${f.fats}`
         )
@@ -140,11 +145,12 @@ Never create combined dishes as a single food (e.g. never "Chicken Biryani", "Al
 - dairy: milk, curd, cheese, yogurt
 - fat: oil, ghee, butter, nuts, peanut butter, almonds
 - other: anything that doesn't fit cleanly (spices, condiments if significant, etc.)
+- custom: use this ONLY if the ingredient genuinely doesn't belong in any of the 6 categories above AND deserves its own distinct grouping (e.g. "Whey Protein Powder" as a supplement, "Multivitamin", "Creatine", "Pre-workout"). When you use category="custom", you MUST also set "customCategory" to a short, clear label (e.g. "Supplements", "Pre-workout") — this becomes its own section in the user's Foods list. Don't overuse this; only reach for it when "other" genuinely feels wrong.
 Ignore spices/herbs entirely unless nutritionally significant on their own.
 
 For each action:
 - "log_existing": use when an ingredient already exists (matched by name/alias/baseIngredient) in the user's foods below. Set foodId to its exact id. Set quantityConsumed IN THAT INGREDIENT'S OWN UNIT: if unit is "count" (e.g. eggs), quantityConsumed=3 means 3 eggs; if unit is "g"/"ml", quantityConsumed is grams/ml eaten; if kind is "binary" or unit is "serving", set quantityConsumed to that ingredient's own targetQuantity (binary items are all-or-nothing).
-- "create_and_log": use when the ingredient doesn't exist yet. Create ONLY that ingredient (never the combined dish). Set kind="binary", unit="serving", targetQuantity=1, quantityConsumed=1 UNLESS the ingredient is something naturally counted or weighed the user might log again later in a different amount — in that case you may instead use kind="quantity" with unit="g"/"ml"/"count" and put nutrition per that unit. When in doubt, prefer kind="binary"/unit="serving" with the full estimated portion baked in, since it's simpler and always correct for a one-off logged amount. Always set "category" (one of the 7 above) and "baseIngredient" (a short lowercase reusable key, e.g. "rice", "chicken", "banana") so this same ingredient can be recognized and reused inside future different dishes. Pick one fitting emoji. Include 2-3 short lowercase aliases.
+- "create_and_log": use when the ingredient doesn't exist yet. Create ONLY that ingredient (never the combined dish). Set kind="binary", unit="serving", targetQuantity=1, quantityConsumed=1 UNLESS the ingredient is something naturally counted or weighed the user might log again later in a different amount — in that case you may instead use kind="quantity" with unit="g"/"ml"/"count" and put nutrition per that unit. When in doubt, prefer kind="binary"/unit="serving" with the full estimated portion baked in, since it's simpler and always correct for a one-off logged amount. Always set "category" (one of the options above — including "custom" with a "customCategory" label when genuinely needed) and "baseIngredient" (a short lowercase reusable key, e.g. "rice", "chicken", "banana") so this same ingredient can be recognized and reused inside future different dishes. Set "emoji" to the single best-fitting icon key from this exact list (pick the most specific match — don't default to a generic one when a closer match exists, and don't invent keys outside this list): ${ICON_KEYS.join(", ")}. Include 2-3 short lowercase aliases.
 
 Be decisive and reasonably accurate with estimates for common ingredients (you know roughly what rice, chicken, dal, roti, paneer, idli, oil, etc. contain per typical serving). Round to sensible whole numbers.
 

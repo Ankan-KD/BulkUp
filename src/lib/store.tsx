@@ -42,6 +42,7 @@ interface FoodRow {
   kind: string;
   active_days: number[];
   category: string;
+  custom_category: string;
   base_ingredient: string;
 }
 
@@ -62,6 +63,7 @@ function foodFromRow(r: FoodRow): FoodTemplate {
     kind: r.kind as FoodTemplate["kind"],
     activeDays: r.active_days && r.active_days.length > 0 ? r.active_days : [0, 1, 2, 3, 4, 5, 6],
     category: (r.category as FoodTemplate["category"]) || "other",
+    customCategory: r.custom_category ?? "",
     baseIngredient: r.base_ingredient ?? "",
   };
 }
@@ -124,6 +126,7 @@ interface StoreContextValue extends StoreShape {
   createAndLogFood: (food: Omit<FoodTemplate, "id" | "sortOrder">, quantityConsumed: number) => Promise<string | null>;
   updateFood: (id: string, patch: Partial<FoodTemplate>) => void;
   archiveFood: (id: string) => void;
+  deleteFood: (id: string) => void;
   logQuantity: (foodId: string, quantity: number) => void;
   addQuantity: (foodId: string, delta: number) => void;
   toggleBinary: (foodId: string) => void;
@@ -295,6 +298,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         kind: food.kind,
         active_days: food.activeDays,
         category: food.category,
+        custom_category: food.customCategory,
         base_ingredient: food.baseIngredient,
       })
       .select()
@@ -338,6 +342,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         kind: food.kind,
         active_days: food.activeDays,
         category: food.category,
+        custom_category: food.customCategory,
         base_ingredient: food.baseIngredient,
       })
       .select()
@@ -374,6 +379,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (patch.kind !== undefined) row.kind = patch.kind;
     if (patch.activeDays !== undefined) row.active_days = patch.activeDays;
     if (patch.category !== undefined) row.category = patch.category;
+    if (patch.customCategory !== undefined) row.custom_category = patch.customCategory;
     if (patch.baseIngredient !== undefined) row.base_ingredient = patch.baseIngredient;
     supabase
       .from("foods")
@@ -387,6 +393,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   function archiveFood(id: string) {
     updateFood(id, { archived: true });
+  }
+
+  function deleteFood(id: string) {
+    setState((s) => ({
+      ...s,
+      foods: s.foods.filter((f) => f.id !== id),
+      today: { ...s.today, logs: s.today.logs.filter((l) => l.foodId !== id) },
+      history: s.history.map((d) => ({ ...d, logs: d.logs.filter((l) => l.foodId !== id) })),
+    }));
+    if (!supabase || !user) return;
+    supabase
+      .from("foods")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .then(({ error }) => {
+        if (error) console.error("deleteFood failed", error.message);
+      });
   }
 
   function upsertTodayLog(foodId: string, quantity: number) {
@@ -469,6 +493,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       createAndLogFood,
       updateFood,
       archiveFood,
+      deleteFood,
       logQuantity,
       addQuantity,
       toggleBinary,

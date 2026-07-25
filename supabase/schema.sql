@@ -23,7 +23,7 @@ create table if not exists public.foods (
   id               uuid primary key default gen_random_uuid(),
   user_id          uuid references auth.users(id) on delete cascade not null,
   name             text not null,
-  emoji            text not null default '🍽️',
+  emoji            text not null default 'Utensils', -- stores a lucide-react icon key (e.g. "Drumstick"), not a raw emoji anymore
   target_quantity  numeric not null default 1,
   unit             text not null default 'count',
   calories         numeric not null default 0,
@@ -36,6 +36,7 @@ create table if not exists public.foods (
   kind             text not null default 'quantity',
   active_days      smallint[] not null default '{0,1,2,3,4,5,6}',
   category         text not null default 'other',
+  custom_category  text not null default '',
   base_ingredient  text not null default '',
   created_at       timestamptz not null default now()
 );
@@ -44,7 +45,27 @@ create table if not exists public.foods (
 -- add them safely without touching any of your existing foods/data.
 alter table public.foods add column if not exists active_days smallint[] not null default '{0,1,2,3,4,5,6}';
 alter table public.foods add column if not exists category text not null default 'other';
+alter table public.foods add column if not exists custom_category text not null default '';
 alter table public.foods add column if not exists base_ingredient text not null default '';
+
+-- One-time migration: the app used to store a raw emoji character in `emoji`
+-- (e.g. '🥚'); it now stores a lucide-react icon key (e.g. 'Egg'). This
+-- upgrades any existing rows still holding an old emoji to the closest icon
+-- key so existing foods don't all collapse to the generic fallback icon.
+-- Safe to re-run; rows already holding a valid icon key are left untouched.
+update public.foods set emoji = 'Egg' where emoji = '🥚';
+update public.foods set emoji = 'CupSoda' where emoji = '🥤';
+update public.foods set emoji = 'Drumstick' where emoji = '🍗';
+update public.foods set emoji = 'Wheat' where emoji in ('🍚', '🥣');
+update public.foods set emoji = 'Milk' where emoji = '🥛';
+update public.foods set emoji = 'Nut' where emoji in ('🥜', '🫘');
+update public.foods set emoji = 'Banana' where emoji = '🍌';
+update public.foods set emoji = 'Cookie' where emoji = '🥞';
+update public.foods set emoji = 'Milk' where emoji = '🧀';
+update public.foods set emoji = 'Carrot' where emoji in ('🥑', '🍠');
+update public.foods set emoji = 'Utensils' where emoji = '🍽️';
+-- Anything else still holding a raw (non-ASCII) emoji character falls back
+-- to the generic icon at render time automatically — no crash, no data loss.
 
 create table if not exists public.day_logs (
   id               uuid primary key default gen_random_uuid(),

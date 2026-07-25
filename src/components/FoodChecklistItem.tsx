@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { FoodTemplate } from "@/lib/types";
+import { AppIcon } from "@/lib/icons";
 import { useStore } from "@/lib/store";
 import { foodProgress } from "@/lib/nutrition";
 import { cn } from "@/lib/utils";
@@ -32,7 +33,7 @@ export function FoodChecklistItem({
         )}
       >
         <Checkbox done={done} />
-        <span className="text-xl leading-none">{food.emoji}</span>
+        <span className="text-xl leading-none"><AppIcon name={food.emoji} className="w-5 h-5" /></span>
         <span className={cn("flex-1 font-medium text-[15px]", done && "line-through decoration-2 text-[var(--text-muted)]")}>
           {food.name}
         </span>
@@ -55,7 +56,7 @@ export function FoodChecklistItem({
         className="w-full flex items-center gap-3 text-left"
       >
         <Checkbox done={done} progress={progress} />
-        <span className="text-xl leading-none">{food.emoji}</span>
+        <span className="text-xl leading-none"><AppIcon name={food.emoji} className="w-5 h-5" /></span>
         <span className={cn("flex-1 font-medium text-[15px]", done && "text-[var(--text)]")}>
           {food.name}
         </span>

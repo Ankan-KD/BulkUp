@@ -7,6 +7,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { computeTotals, completionPercent, foodProgress } from "@/lib/nutrition";
 import { formatDateLabel } from "@/lib/utils";
 import { DayRecord } from "@/lib/types";
+import { AppIcon } from "@/lib/icons";
 import { Flame, Scale as ScaleIcon } from "lucide-react";
 
 export default function HistoryPage() {
@@ -83,7 +84,7 @@ export default function HistoryPage() {
                   const p = foodProgress(f, log?.loggedQuantity ?? 0);
                   return (
                     <div key={f.id} className="flex items-center gap-3 py-1.5">
-                      <span className="text-lg">{f.emoji}</span>
+                      <span className="text-lg"><AppIcon name={f.emoji} className="w-[18px] h-[18px]" /></span>
                       <span className="flex-1 text-sm">{f.name}</span>
                       <span className={`text-xs font-medium ${p >= 1 ? "text-nova-600 dark:text-nova-300" : "text-[var(--text-muted)]"}`}>
                         {p >= 1 ? "done" : `${Math.round(p * 100)}%`}

@@ -7,17 +7,18 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Sprout } from "@/components/Sprout";
 import { FoodTemplate } from "@/lib/types";
+import { AppIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
-const SUGGESTIONS: Array<Omit<FoodTemplate, "id" | "sortOrder" | "archived" | "activeDays" | "category" | "baseIngredient">> = [
-  { name: "Eggs", emoji: "🥚", targetQuantity: 4, unit: "count", calories: 70, protein: 6, carbs: 0.5, fats: 5, aliases: ["egg"], kind: "quantity" },
-  { name: "Milk", emoji: "🥛", targetQuantity: 500, unit: "ml", calories: 0.62, protein: 0.034, carbs: 0.05, fats: 0.033, aliases: [], kind: "quantity" },
-  { name: "Chicken", emoji: "🍗", targetQuantity: 300, unit: "g", calories: 1.65, protein: 0.31, carbs: 0, fats: 0.036, aliases: ["chicken breast"], kind: "quantity" },
-  { name: "Rice", emoji: "🍚", targetQuantity: 300, unit: "g", calories: 1.3, protein: 0.027, carbs: 0.28, fats: 0.003, aliases: [], kind: "quantity" },
-  { name: "Protein Shake", emoji: "🥤", targetQuantity: 1, unit: "serving", calories: 480, protein: 40, carbs: 45, fats: 12, aliases: ["shake", "whey"], kind: "binary" },
-  { name: "Oats", emoji: "🥣", targetQuantity: 100, unit: "g", calories: 3.9, protein: 0.13, carbs: 0.66, fats: 0.07, aliases: ["oatmeal"], kind: "quantity" },
-  { name: "Peanut Butter", emoji: "🥜", targetQuantity: 2, unit: "count", calories: 95, protein: 3.5, carbs: 3, fats: 8, aliases: ["pb"], kind: "quantity" },
-  { name: "Bananas", emoji: "🍌", targetQuantity: 2, unit: "count", calories: 105, protein: 1.3, carbs: 27, fats: 0.4, aliases: ["banana"], kind: "quantity" },
+const SUGGESTIONS: Array<Omit<FoodTemplate, "id" | "sortOrder" | "archived" | "activeDays" | "category" | "customCategory" | "baseIngredient">> = [
+  { name: "Eggs", emoji: "Egg", targetQuantity: 4, unit: "count", calories: 70, protein: 6, carbs: 0.5, fats: 5, aliases: ["egg"], kind: "quantity" },
+  { name: "Milk", emoji: "Milk", targetQuantity: 500, unit: "ml", calories: 0.62, protein: 0.034, carbs: 0.05, fats: 0.033, aliases: [], kind: "quantity" },
+  { name: "Chicken", emoji: "Drumstick", targetQuantity: 300, unit: "g", calories: 1.65, protein: 0.31, carbs: 0, fats: 0.036, aliases: ["chicken breast"], kind: "quantity" },
+  { name: "Rice", emoji: "Wheat", targetQuantity: 300, unit: "g", calories: 1.3, protein: 0.027, carbs: 0.28, fats: 0.003, aliases: [], kind: "quantity" },
+  { name: "Protein Shake", emoji: "CupSoda", targetQuantity: 1, unit: "serving", calories: 480, protein: 40, carbs: 45, fats: 12, aliases: ["shake", "whey"], kind: "binary" },
+  { name: "Oats", emoji: "Wheat", targetQuantity: 100, unit: "g", calories: 3.9, protein: 0.13, carbs: 0.66, fats: 0.07, aliases: ["oatmeal"], kind: "quantity" },
+  { name: "Peanut Butter", emoji: "Nut", targetQuantity: 2, unit: "count", calories: 95, protein: 3.5, carbs: 3, fats: 8, aliases: ["pb"], kind: "quantity" },
+  { name: "Bananas", emoji: "Banana", targetQuantity: 2, unit: "count", calories: 105, protein: 1.3, carbs: 27, fats: 0.4, aliases: ["banana"], kind: "quantity" },
 ];
 
 const SUGGESTION_CATEGORY: Record<string, FoodTemplate["category"]> = {
@@ -78,6 +79,7 @@ export default function OnboardingPage() {
           archived: false,
           activeDays: [0, 1, 2, 3, 4, 5, 6],
           category: SUGGESTION_CATEGORY[s.name] ?? "other",
+          customCategory: "",
           baseIngredient: SUGGESTION_BASE_INGREDIENT[s.name] ?? s.name.toLowerCase(),
           targetQuantity: targets[s.name] ?? s.targetQuantity,
         });
@@ -161,7 +163,7 @@ export default function OnboardingPage() {
                     : "border-[var(--border)] bg-[var(--bg-elevated)]"
                 )}
               >
-                <span className="text-xl">{s.emoji}</span>
+                <span className="text-xl"><AppIcon name={s.emoji} className="w-5 h-5" /></span>
                 <span className="text-sm font-medium">{s.name}</span>
               </button>
             ))}
@@ -186,7 +188,7 @@ export default function OnboardingPage() {
           <div className="space-y-3 overflow-y-auto no-scrollbar">
             {SUGGESTIONS.filter((s) => chosen.includes(s.name)).map((s) => (
               <div key={s.name} className="flex items-center gap-3 rounded-xl2 border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
-                <span className="text-xl">{s.emoji}</span>
+                <span className="text-xl"><AppIcon name={s.emoji} className="w-5 h-5" /></span>
                 <span className="flex-1 text-sm font-medium">{s.name}</span>
                 <div className="flex items-center gap-2">
                   <button

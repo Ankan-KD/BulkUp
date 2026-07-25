@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Sheet } from "./ui/sheet";
 import { useStore } from "@/lib/store";
 import { FoodTemplate } from "@/lib/types";
+import { AppIcon } from "@/lib/icons";
 import { Sparkles, Send, Mic, MicOff, Loader2, CheckCircle2 } from "lucide-react";
 
 interface ChatMessage {
@@ -27,6 +28,7 @@ interface ChatAction {
   fats?: number;
   aliases?: string[];
   category?: string;
+  customCategory?: string;
   baseIngredient?: string;
 }
 
@@ -60,8 +62,8 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
   const scrollRef = useRef<HTMLDivElement>(null);
   const foodsRef = useRef(foods);
   const baseTextRef = useRef("");        // text that existed before this mic session started
-const finalTranscriptRef = useRef(""); // finalized speech accumulated during this session
-const manualStopRef = useRef(false);   // true only when the user explicitly presses mic-off
+  const finalTranscriptRef = useRef(""); // finalized speech accumulated during this session
+  const manualStopRef = useRef(false);   // true only when the user explicitly presses mic-off
   foodsRef.current = foods;
 
   useEffect(() => {
@@ -154,7 +156,7 @@ const manualStopRef = useRef(false);   // true only when the user explicitly pre
     // hallucinated an id) — either way, create a fresh food and log it now.
     const newFood: Omit<FoodTemplate, "id" | "sortOrder"> = {
       name: action.name,
-      emoji: action.emoji || "🍽️",
+      emoji: action.emoji || "Utensils",
       targetQuantity: action.targetQuantity ?? 1,
       unit: (action.unit as FoodTemplate["unit"]) ?? "serving",
       calories: action.calories ?? 0,
@@ -166,6 +168,7 @@ const manualStopRef = useRef(false);   // true only when the user explicitly pre
       kind: (action.kind as FoodTemplate["kind"]) ?? "binary",
       activeDays: [0, 1, 2, 3, 4, 5, 6],
       category: (action.category as FoodTemplate["category"]) ?? "other",
+      customCategory: action.customCategory ?? "",
       baseIngredient: action.baseIngredient ?? action.name.toLowerCase(),
     };
     await createAndLogFood(newFood, action.quantityConsumed || newFood.targetQuantity);
@@ -245,7 +248,7 @@ const manualStopRef = useRef(false);   // true only when the user explicitly pre
                         key={j}
                         className="inline-flex items-center gap-1 text-[12px] px-2.5 py-1 rounded-full bg-aurora-500/15 text-aurora-300"
                       >
-                        <CheckCircle2 className="w-3 h-3" /> {l.emoji} {l.name}
+                        <CheckCircle2 className="w-3 h-3" /> <AppIcon name={l.emoji} className="w-3 h-3" /> {l.name}
                       </span>
                     ))}
                   </div>

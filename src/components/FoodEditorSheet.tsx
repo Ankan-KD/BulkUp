@@ -5,26 +5,27 @@ import { Sheet } from "./ui/sheet";
 import { Button } from "./ui/button";
 import { useStore } from "@/lib/store";
 import { FoodTemplate, Unit, FoodKind, FoodCategory } from "@/lib/types";
+import { FOOD_ICON_OPTIONS, CATEGORY_ICON_KEYS, AppIcon } from "@/lib/icons";
 
-const EMOJI_OPTIONS = ["🥚", "🥤", "🍗", "🍚", "🥛", "🥜", "🍌", "🥞", "🧀", "🥑", "🍠", "🫘"];
 const UNIT_OPTIONS: Unit[] = ["g", "ml", "count", "serving"];
 const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
-const CATEGORY_OPTIONS: { value: FoodCategory; label: string; emoji: string }[] = [
-  { value: "protein", label: "Protein", emoji: "🥩" },
-  { value: "grain", label: "Carbs/Grain", emoji: "🍚" },
-  { value: "vegetable", label: "Vegetable", emoji: "🥦" },
-  { value: "fruit", label: "Fruit", emoji: "🍎" },
-  { value: "dairy", label: "Dairy", emoji: "🥛" },
-  { value: "fat", label: "Fats/Nuts", emoji: "🥜" },
-  { value: "other", label: "Other", emoji: "🍽️" },
+const CATEGORY_OPTIONS: { value: FoodCategory; label: string }[] = [
+  { value: "protein", label: "Protein" },
+  { value: "grain", label: "Carbs/Grain" },
+  { value: "vegetable", label: "Vegetable" },
+  { value: "fruit", label: "Fruit" },
+  { value: "dairy", label: "Dairy" },
+  { value: "fat", label: "Fats/Nuts" },
+  { value: "other", label: "Other" },
+  { value: "custom", label: "Custom" },
 ];
 
 const empty: Omit<FoodTemplate, "id" | "sortOrder"> = {
   name: "",
-  emoji: "🥚",
+  emoji: "Egg",
   targetQuantity: 1,
   unit: "count",
   calories: 0,
@@ -34,6 +35,7 @@ const empty: Omit<FoodTemplate, "id" | "sortOrder"> = {
   aliases: [],
   archived: false,
   category: "other",
+  customCategory: "",
   baseIngredient: "",
   kind: "quantity",
   activeDays: ALL_DAYS,
@@ -73,15 +75,18 @@ export function FoodEditorSheet({
     <Sheet open={open} onClose={onClose} title={food ? "Edit food" : "Add food"}>
       <div className="space-y-4">
         <div className="flex gap-2 flex-wrap">
-          {EMOJI_OPTIONS.map((e) => (
+          {FOOD_ICON_OPTIONS.map((opt) => (
             <button
-              key={e}
-              onClick={() => setForm((f) => ({ ...f, emoji: e }))}
-              className={`h-10 w-10 flex items-center justify-center rounded-xl text-xl transition-colors ${
-                form.emoji === e ? "bg-nova-700/15 ring-2 ring-nova-500" : "bg-nova-700/6"
+              key={opt.key}
+              type="button"
+              title={opt.label}
+              aria-label={opt.label}
+              onClick={() => setForm((f) => ({ ...f, emoji: opt.key }))}
+              className={`h-10 w-10 flex items-center justify-center rounded-xl transition-colors ${
+                form.emoji === opt.key ? "bg-nova-700/15 ring-2 ring-nova-500" : "bg-nova-700/6"
               }`}
             >
-              {e}
+              <AppIcon name={opt.key} className="w-5 h-5" />
             </button>
           ))}
         </div>
@@ -109,10 +114,19 @@ export function FoodEditorSheet({
                     : "border border-[var(--border)] text-[var(--text-muted)]"
                 }`}
               >
-                <span>{c.emoji}</span> {c.label}
+                <span><AppIcon name={CATEGORY_ICON_KEYS[c.value]} className="w-3.5 h-3.5" /></span> {c.label}
               </button>
             ))}
           </div>
+          {form.category === "custom" && (
+            <input
+              value={form.customCategory ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, customCategory: e.target.value }))}
+              placeholder="Name your category, e.g. Snacks, Supplements"
+              className="input mt-2"
+              autoFocus
+            />
+          )}
         </div>
 
         <Field label="Base ingredient (optional — helps the AI recognize it across different dishes)">
