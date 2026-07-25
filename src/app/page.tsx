@@ -20,10 +20,12 @@ export default function DashboardPage() {
   }, [ready, settings.onboarded, router]);
 
   const totals = useMemo(() => computeTotals(foods, today), [foods, today]);
-  const activeFoods = useMemo(
-    () => foods.filter((f) => !f.archived).sort((a, b) => a.sortOrder - b.sortOrder),
-    [foods]
-  );
+  const activeFoods = useMemo(() => {
+    const todayDow = new Date().getDay(); // 0 = Sunday ... 6 = Saturday
+    return foods
+      .filter((f) => !f.archived && f.activeDays.includes(todayDow))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+  }, [foods]);
 
   const calorieProgress = settings.calorieGoal > 0 ? totals.calories / settings.calorieGoal : 0;
   const remaining = Math.max(0, settings.calorieGoal - totals.calories);
@@ -97,7 +99,9 @@ export default function DashboardPage() {
           ))}
           {activeFoods.length === 0 && (
             <Card className="p-6 text-center text-sm text-[var(--text-muted)]">
-              No foods yet. Add your regulars in the Foods tab to build your checklist.
+              {foods.filter((f) => !f.archived).length === 0
+                ? "No foods yet. Add your regulars in the Foods tab to build your checklist."
+                : "Nothing scheduled for today. Adjust a food's days in the Foods tab if that's not right."}
             </Card>
           )}
         </div>

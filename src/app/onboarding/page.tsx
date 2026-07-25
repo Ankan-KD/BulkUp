@@ -9,7 +9,7 @@ import { Sprout } from "@/components/Sprout";
 import { FoodTemplate } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const SUGGESTIONS: Array<Omit<FoodTemplate, "id" | "sortOrder" | "archived">> = [
+const SUGGESTIONS: Array<Omit<FoodTemplate, "id" | "sortOrder" | "archived" | "activeDays" | "category" | "baseIngredient">> = [
   { name: "Eggs", emoji: "🥚", targetQuantity: 4, unit: "count", calories: 70, protein: 6, carbs: 0.5, fats: 5, aliases: ["egg"], kind: "quantity" },
   { name: "Milk", emoji: "🥛", targetQuantity: 500, unit: "ml", calories: 0.62, protein: 0.034, carbs: 0.05, fats: 0.033, aliases: [], kind: "quantity" },
   { name: "Chicken", emoji: "🍗", targetQuantity: 300, unit: "g", calories: 1.65, protein: 0.31, carbs: 0, fats: 0.036, aliases: ["chicken breast"], kind: "quantity" },
@@ -19,6 +19,28 @@ const SUGGESTIONS: Array<Omit<FoodTemplate, "id" | "sortOrder" | "archived">> = 
   { name: "Peanut Butter", emoji: "🥜", targetQuantity: 2, unit: "count", calories: 95, protein: 3.5, carbs: 3, fats: 8, aliases: ["pb"], kind: "quantity" },
   { name: "Bananas", emoji: "🍌", targetQuantity: 2, unit: "count", calories: 105, protein: 1.3, carbs: 27, fats: 0.4, aliases: ["banana"], kind: "quantity" },
 ];
+
+const SUGGESTION_CATEGORY: Record<string, FoodTemplate["category"]> = {
+  Eggs: "protein",
+  Milk: "dairy",
+  Chicken: "protein",
+  Rice: "grain",
+  "Protein Shake": "protein",
+  Oats: "grain",
+  "Peanut Butter": "fat",
+  Bananas: "fruit",
+};
+
+const SUGGESTION_BASE_INGREDIENT: Record<string, string> = {
+  Eggs: "egg",
+  Milk: "milk",
+  Chicken: "chicken",
+  Rice: "rice",
+  "Protein Shake": "protein shake",
+  Oats: "oats",
+  "Peanut Butter": "peanut butter",
+  Bananas: "banana",
+};
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -51,7 +73,14 @@ export default function OnboardingPage() {
     addWeightEntry(currentWeight);
     if (foods.length === 0) {
       SUGGESTIONS.filter((s) => chosen.includes(s.name)).forEach((s) => {
-        addFood({ ...s, archived: false, targetQuantity: targets[s.name] ?? s.targetQuantity });
+        addFood({
+          ...s,
+          archived: false,
+          activeDays: [0, 1, 2, 3, 4, 5, 6],
+          category: SUGGESTION_CATEGORY[s.name] ?? "other",
+          baseIngredient: SUGGESTION_BASE_INGREDIENT[s.name] ?? s.name.toLowerCase(),
+          targetQuantity: targets[s.name] ?? s.targetQuantity,
+        });
       });
     }
     router.replace("/");

@@ -4,10 +4,23 @@ import { useEffect, useState } from "react";
 import { Sheet } from "./ui/sheet";
 import { Button } from "./ui/button";
 import { useStore } from "@/lib/store";
-import { FoodTemplate, Unit, FoodKind } from "@/lib/types";
+import { FoodTemplate, Unit, FoodKind, FoodCategory } from "@/lib/types";
 
 const EMOJI_OPTIONS = ["🥚", "🥤", "🍗", "🍚", "🥛", "🥜", "🍌", "🥞", "🧀", "🥑", "🍠", "🫘"];
 const UNIT_OPTIONS: Unit[] = ["g", "ml", "count", "serving"];
+const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+
+const CATEGORY_OPTIONS: { value: FoodCategory; label: string; emoji: string }[] = [
+  { value: "protein", label: "Protein", emoji: "🥩" },
+  { value: "grain", label: "Carbs/Grain", emoji: "🍚" },
+  { value: "vegetable", label: "Vegetable", emoji: "🥦" },
+  { value: "fruit", label: "Fruit", emoji: "🍎" },
+  { value: "dairy", label: "Dairy", emoji: "🥛" },
+  { value: "fat", label: "Fats/Nuts", emoji: "🥜" },
+  { value: "other", label: "Other", emoji: "🍽️" },
+];
 
 const empty: Omit<FoodTemplate, "id" | "sortOrder"> = {
   name: "",
@@ -20,7 +33,10 @@ const empty: Omit<FoodTemplate, "id" | "sortOrder"> = {
   fats: 0,
   aliases: [],
   archived: false,
+  category: "other",
+  baseIngredient: "",
   kind: "quantity",
+  activeDays: ALL_DAYS,
 };
 
 export function FoodEditorSheet({
@@ -74,7 +90,36 @@ export function FoodEditorSheet({
           <input
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="e.g. Greek Yogurt"
+            placeholder="e.g. Chicken, Rice, Almonds"
+            className="input"
+          />
+        </Field>
+
+        <div>
+          <span className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">Category</span>
+          <div className="flex flex-wrap gap-1.5">
+            {CATEGORY_OPTIONS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, category: c.value }))}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  form.category === c.value
+                    ? "bg-nova-600 text-white shadow-glow-nova"
+                    : "border border-[var(--border)] text-[var(--text-muted)]"
+                }`}
+              >
+                <span>{c.emoji}</span> {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Field label="Base ingredient (optional — helps the AI recognize it across different dishes)">
+          <input
+            value={form.baseIngredient}
+            onChange={(e) => setForm((f) => ({ ...f, baseIngredient: e.target.value }))}
+            placeholder="e.g. rice, chicken, banana"
             className="input"
           />
         </Field>
@@ -173,7 +218,55 @@ export function FoodEditorSheet({
           />
         </Field>
 
-        <Button className="w-full" size="lg" onClick={save}>
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="block text-xs font-medium text-[var(--text-muted)]">Days it appears</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, activeDays: ALL_DAYS }))}
+                className="text-[11px] font-medium text-nova-400"
+              >
+                Every day
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, activeDays: [1, 2, 3, 4, 5] }))}
+                className="text-[11px] font-medium text-nova-400"
+              >
+                Weekdays
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-1.5">
+            {DAY_LABELS.map((label, i) => {
+              const selected = form.activeDays.includes(i);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  title={DAY_FULL[i]}
+                  onClick={() =>
+                    setForm((f) => ({
+                      ...f,
+                      activeDays: selected ? f.activeDays.filter((d) => d !== i) : [...f.activeDays, i].sort(),
+                    }))
+                  }
+                  className={`h-9 flex-1 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
+                    selected ? "bg-nova-600 text-white shadow-glow-nova" : "border border-[var(--border)] text-[var(--text-muted)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          {form.activeDays.length === 0 && (
+            <p className="text-[11px] text-ember-400 mt-1.5">Pick at least one day, or it will never show up.</p>
+          )}
+        </div>
+
+        <Button className="w-full" size="lg" onClick={save} disabled={form.activeDays.length === 0}>
           {food ? "Save changes" : "Add food"}
         </Button>
       </div>

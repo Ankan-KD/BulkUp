@@ -40,6 +40,9 @@ interface FoodRow {
   sort_order: number;
   archived: boolean;
   kind: string;
+  active_days: number[];
+  category: string;
+  base_ingredient: string;
 }
 
 function foodFromRow(r: FoodRow): FoodTemplate {
@@ -57,6 +60,9 @@ function foodFromRow(r: FoodRow): FoodTemplate {
     sortOrder: r.sort_order,
     archived: r.archived,
     kind: r.kind as FoodTemplate["kind"],
+    activeDays: r.active_days && r.active_days.length > 0 ? r.active_days : [0, 1, 2, 3, 4, 5, 6],
+    category: (r.category as FoodTemplate["category"]) || "other",
+    baseIngredient: r.base_ingredient ?? "",
   };
 }
 
@@ -115,6 +121,7 @@ interface StoreShape {
 interface StoreContextValue extends StoreShape {
   updateSettings: (patch: Partial<UserSettings>) => void;
   addFood: (food: Omit<FoodTemplate, "id" | "sortOrder">) => void;
+  createAndLogFood: (food: Omit<FoodTemplate, "id" | "sortOrder">, quantityConsumed: number) => Promise<string | null>;
   updateFood: (id: string, patch: Partial<FoodTemplate>) => void;
   archiveFood: (id: string) => void;
   logQuantity: (foodId: string, quantity: number) => void;
@@ -286,6 +293,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         sort_order: sortOrder,
         archived: food.archived,
         kind: food.kind,
+        active_days: food.activeDays,
+        category: food.category,
+        base_ingredient: food.baseIngredient,
       })
       .select()
       .single()
@@ -302,6 +312,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }));
         }
       });
+  }
+
+  async function createAndLogFood(
+    food: Omit<FoodTemplate, "id" | "sortOrder">,
+    quantityConsumed: number
+  ): Promise<string | null> {
+    if (!supabase || !user) return null;
+    const sortOrder = stateRef.current.foods.length;
+    const { data, error } = await supabase
+      .from("foods")
+      .insert({
+        user_id: user.id,
+        name: food.name,
+        emoji: food.emoji,
+        target_quantity: food.targetQuantity,
+        unit: food.unit,
+        calories: food.calories,
+        protein: food.protein,
+        carbs: food.carbs,
+        fats: food.fats,
+        aliases: food.aliases,
+        sort_order: sortOrder,
+        archived: food.archived,
+        kind: food.kind,
+        active_days: food.activeDays,
+        category: food.category,
+        base_ingredient: food.baseIngredient,
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error("createAndLogFood failed", error?.message);
+      return null;
+    }
+
+    const created = foodFromRow(data as FoodRow);
+    setState((s) => ({ ...s, foods: [...s.foods, created] }));
+    upsertTodayLog(created.id, quantityConsumed);
+    return created.id;
   }
 
   function updateFood(id: string, patch: Partial<FoodTemplate>) {
@@ -322,6 +372,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (patch.aliases !== undefined) row.aliases = patch.aliases;
     if (patch.archived !== undefined) row.archived = patch.archived;
     if (patch.kind !== undefined) row.kind = patch.kind;
+    if (patch.activeDays !== undefined) row.active_days = patch.activeDays;
+    if (patch.category !== undefined) row.category = patch.category;
+    if (patch.baseIngredient !== undefined) row.base_ingredient = patch.baseIngredient;
     supabase
       .from("foods")
       .update(row)
@@ -413,6 +466,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...state,
       updateSettings,
       addFood,
+      createAndLogFood,
       updateFood,
       archiveFood,
       logQuantity,

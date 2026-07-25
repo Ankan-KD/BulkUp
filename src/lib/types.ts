@@ -2,6 +2,8 @@ export type Unit = "g" | "ml" | "serving" | "count" | "oz";
 
 export type FoodKind = "binary" | "quantity";
 
+export type FoodCategory = "protein" | "grain" | "vegetable" | "fruit" | "dairy" | "fat" | "other";
+
 export interface FoodTemplate {
   id: string;
   name: string;
@@ -16,6 +18,9 @@ export interface FoodTemplate {
   sortOrder: number;
   archived: boolean;
   kind: FoodKind;
+  activeDays: number[]; // 0 = Sunday ... 6 = Saturday (matches JS Date.getDay()). Empty/full = every day.
+  category: FoodCategory;
+  baseIngredient: string; // normalized reusable ingredient key, e.g. "rice", "chicken" — lets the AI recognize the same ingredient across different dishes
 }
 
 export interface DailyFoodLog {

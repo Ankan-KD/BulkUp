@@ -34,8 +34,17 @@ create table if not exists public.foods (
   sort_order       int not null default 0,
   archived         boolean not null default false,
   kind             text not null default 'quantity',
+  active_days      smallint[] not null default '{0,1,2,3,4,5,6}',
+  category         text not null default 'other',
+  base_ingredient  text not null default '',
   created_at       timestamptz not null default now()
 );
+
+-- If you already ran this schema before these columns existed, these lines
+-- add them safely without touching any of your existing foods/data.
+alter table public.foods add column if not exists active_days smallint[] not null default '{0,1,2,3,4,5,6}';
+alter table public.foods add column if not exists category text not null default 'other';
+alter table public.foods add column if not exists base_ingredient text not null default '';
 
 create table if not exists public.day_logs (
   id               uuid primary key default gen_random_uuid(),
