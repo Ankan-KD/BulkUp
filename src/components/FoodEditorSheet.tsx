@@ -5,7 +5,7 @@ import { Sheet } from "./ui/sheet";
 import { Button } from "./ui/button";
 import { useStore } from "@/lib/store";
 import { FoodTemplate, Unit, FoodKind, FoodCategory } from "@/lib/types";
-import { FOOD_ICON_OPTIONS, CATEGORY_ICON_KEYS, AppIcon } from "@/lib/icons";
+import { FOOD_ICON_OPTIONS, CATEGORY_ICON_KEYS, AppIcon, FoodIcon, getCategoryStyle } from "@/lib/icons";
 
 const UNIT_OPTIONS: Unit[] = ["g", "ml", "count", "serving"];
 const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -74,21 +74,24 @@ export function FoodEditorSheet({
   return (
     <Sheet open={open} onClose={onClose} title={food ? "Edit food" : "Add food"}>
       <div className="space-y-4">
-        <div className="flex gap-2 flex-wrap">
-          {FOOD_ICON_OPTIONS.map((opt) => (
-            <button
-              key={opt.key}
-              type="button"
-              title={opt.label}
-              aria-label={opt.label}
-              onClick={() => setForm((f) => ({ ...f, emoji: opt.key }))}
-              className={`h-10 w-10 flex items-center justify-center rounded-xl transition-colors ${
-                form.emoji === opt.key ? "bg-nova-700/15 ring-2 ring-nova-500" : "bg-nova-700/6"
-              }`}
-            >
-              <AppIcon name={opt.key} className="w-5 h-5" />
-            </button>
-          ))}
+        <div>
+          <span className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">Icon</span>
+          <div className="flex gap-2 flex-wrap">
+            {FOOD_ICON_OPTIONS.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                title={opt.label}
+                aria-label={opt.label}
+                onClick={() => setForm((f) => ({ ...f, emoji: opt.key }))}
+                className={`rounded-xl transition-shadow ${
+                  form.emoji === opt.key ? "ring-2 ring-offset-2 ring-offset-[var(--bg-elevated)] ring-nova-500" : ""
+                }`}
+              >
+                <FoodIcon iconKey={opt.key} category={form.category} size="lg" />
+              </button>
+            ))}
+          </div>
         </div>
 
         <Field label="Name">
@@ -103,20 +106,31 @@ export function FoodEditorSheet({
         <div>
           <span className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">Category</span>
           <div className="flex flex-wrap gap-1.5">
-            {CATEGORY_OPTIONS.map((c) => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, category: c.value }))}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  form.category === c.value
-                    ? "bg-nova-600 text-white shadow-glow-nova"
-                    : "border border-[var(--border)] text-[var(--text-muted)]"
-                }`}
-              >
-                <span><AppIcon name={CATEGORY_ICON_KEYS[c.value]} className="w-3.5 h-3.5" /></span> {c.label}
-              </button>
-            ))}
+            {CATEGORY_OPTIONS.map((c) => {
+              const style = getCategoryStyle(c.value);
+              const selected = form.category === c.value;
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, category: c.value }))}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    selected
+                      ? `${style.chipBg} ${style.chipText} ring-1 ring-inset ${style.ring}`
+                      : "border border-[var(--border)] text-[var(--text-muted)]"
+                  }`}
+                >
+                  <AppIcon
+                    name={CATEGORY_ICON_KEYS[c.value]}
+                    className="w-3.5 h-3.5"
+                    fill="currentColor"
+                    fillOpacity={selected ? 0.25 : 0}
+                    strokeWidth={1.75}
+                  />{" "}
+                  {c.label}
+                </button>
+              );
+            })}
           </div>
           {form.category === "custom" && (
             <input

@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { FoodEditorSheet } from "@/components/FoodEditorSheet";
 import { FoodTemplate, FoodCategory } from "@/lib/types";
-import { CATEGORY_ICON_KEYS, AppIcon } from "@/lib/icons";
-import { Plus, Archive, ArchiveRestore, Trash2 } from "lucide-react";
+import { CATEGORY_ICON_KEYS, FoodIcon, getCategoryStyle } from "@/lib/icons";
+import { Plus, Archive, ArchiveRestore, Trash2, Sprout } from "lucide-react";
 
 const DAY_ABBR = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -47,6 +47,7 @@ interface FoodGroup {
   key: string;
   label: string;
   icon: string;
+  category: FoodCategory;
   items: FoodTemplate[];
 }
 
@@ -86,6 +87,7 @@ export default function FoodsPage() {
       key: c,
       label: CATEGORY_LABELS[c],
       icon: CATEGORY_ICON_KEYS[c],
+      category: c,
       items: standard.get(c)!,
     }));
 
@@ -95,6 +97,7 @@ export default function FoodsPage() {
         key: `custom:${key}`,
         label: customLabels.get(key)!,
         icon: CATEGORY_ICON_KEYS.custom,
+        category: "custom" as FoodCategory,
         items: custom.get(key)!,
       }));
 
@@ -118,19 +121,24 @@ export default function FoodsPage() {
       </header>
 
       <div className="space-y-6">
-        {grouped.map(({ key, label, icon, items }) => (
+        {grouped.map(({ key, label, icon, category, items }) => {
+          const sectionStyle = getCategoryStyle(category);
+          return (
           <section key={key}>
             <div className="flex items-center gap-2 mb-2.5 px-0.5">
-              <AppIcon name={icon} className="w-[18px] h-[18px] text-nova-400" />
+              <FoodIcon iconKey={icon} category={category} size="sm" />
               <h2 className="font-display text-[15px] font-semibold">{label}</h2>
-              <span className="text-xs text-[var(--text-muted)]">({items.length})</span>
+              <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded-full ${sectionStyle.chipBg} ${sectionStyle.chipText}`}>
+                {items.length}
+              </span>
             </div>
             <div className="space-y-2.5">
               {items.map((food) => (
-                <Card key={food.id} className="p-4 flex items-center gap-3">
-                  <span className="h-9 w-9 flex items-center justify-center rounded-xl bg-nova-700/8 shrink-0">
-                    <AppIcon name={food.emoji} className="w-[18px] h-[18px]" />
-                  </span>
+                <Card
+                  key={food.id}
+                  className={`p-4 flex items-center gap-3 border-l-[3px] ${sectionStyle.accentBorder} ${sectionStyle.cardTint}`}
+                >
+                  <FoodIcon iconKey={food.emoji} category={food.category} />
                   <button className="flex-1 text-left" onClick={() => setEditing(food)}>
                     <p className="font-medium text-[15px]">{food.name}</p>
                     <p className="text-xs text-[var(--text-muted)]">
@@ -158,11 +166,14 @@ export default function FoodsPage() {
               ))}
             </div>
           </section>
-        ))}
+          );
+        })}
 
         {active.length === 0 && (
           <Card className="p-8 text-center">
-            <p className="text-3xl mb-2">🌱</p>
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/12 dark:bg-emerald-400/15 mb-3">
+              <Sprout className="w-6 h-6 text-emerald-600 dark:text-emerald-300" fill="currentColor" fillOpacity={0.22} strokeWidth={1.75} />
+            </span>
             <p className="text-sm text-[var(--text-muted)]">
               Add the ingredients you eat regularly to build your daily checklist.
             </p>
@@ -178,7 +189,7 @@ export default function FoodsPage() {
           <div className="space-y-2">
             {archived.map((food) => (
               <Card key={food.id} className="p-3 flex items-center gap-3 opacity-70">
-                <span className="text-nova-400"><AppIcon name={food.emoji} className="w-4 h-4" /></span>
+                <FoodIcon iconKey={food.emoji} category={food.category} size="sm" className="opacity-80" />
                 <p className="flex-1 text-sm">{food.name}</p>
                 <button
                   onClick={() => unarchiveFood(food.id)}

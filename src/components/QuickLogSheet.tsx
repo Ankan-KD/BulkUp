@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { Sheet } from "./ui/sheet";
 import { useStore } from "@/lib/store";
 import { FoodTemplate } from "@/lib/types";
-import { AppIcon } from "@/lib/icons";
+import { AppIcon, resolveFoodIconKey, getCategoryStyle } from "@/lib/icons";
 import { Sparkles, Send, Mic, MicOff, Loader2, CheckCircle2 } from "lucide-react";
 
 interface ChatMessage {
   role: "user" | "assistant";
   text: string;
-  logged?: { name: string; emoji: string }[];
+  logged?: { name: string; emoji: string; category?: string }[];
 }
 
 interface ChatAction {
@@ -139,7 +139,7 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
     }
   }
 
-  async function applyAction(action: ChatAction): Promise<{ name: string; emoji: string }> {
+  async function applyAction(action: ChatAction): Promise<{ name: string; emoji: string; category?: string }> {
     if (action.type === "log_existing" && action.foodId) {
       const food = foodsRef.current.find((f) => f.id === action.foodId);
       if (food) {
@@ -148,15 +148,19 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
         } else {
           addQuantity(food.id, action.quantityConsumed);
         }
-        return { name: food.name, emoji: food.emoji };
+        return { name: food.name, emoji: food.emoji, category: food.category };
       }
     }
 
     // create_and_log, or a log_existing whose foodId didn't resolve (model
     // hallucinated an id) — either way, create a fresh food and log it now.
+    // Icon resolution follows a strict priority: the model's own icon key if
+    // it's a real known icon, else the category's icon, else a generic one —
+    // so a new AI-created food always gets a sensible, on-theme icon.
+    const category = (action.category as FoodTemplate["category"]) ?? "other";
     const newFood: Omit<FoodTemplate, "id" | "sortOrder"> = {
       name: action.name,
-      emoji: action.emoji || "Utensils",
+      emoji: resolveFoodIconKey(action.emoji, category),
       targetQuantity: action.targetQuantity ?? 1,
       unit: (action.unit as FoodTemplate["unit"]) ?? "serving",
       calories: action.calories ?? 0,
@@ -167,12 +171,12 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
       archived: false,
       kind: (action.kind as FoodTemplate["kind"]) ?? "binary",
       activeDays: [0, 1, 2, 3, 4, 5, 6],
-      category: (action.category as FoodTemplate["category"]) ?? "other",
+      category,
       customCategory: action.customCategory ?? "",
       baseIngredient: action.baseIngredient ?? action.name.toLowerCase(),
     };
     await createAndLogFood(newFood, action.quantityConsumed || newFood.targetQuantity);
-    return { name: newFood.name, emoji: newFood.emoji };
+    return { name: newFood.name, emoji: newFood.emoji, category: newFood.category };
   }
 
   async function send(value?: string) {
@@ -197,7 +201,7 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
       const data = await res.json();
       const actions: ChatAction[] = Array.isArray(data.actions) ? data.actions : [];
 
-      let logged: { name: string; emoji: string }[] = [];
+      let logged: { name: string; emoji: string; category?: string }[] = [];
       if (data.done && actions.length > 0) {
         logged = await Promise.all(actions.map(applyAction));
       }
@@ -243,14 +247,25 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
                 <p>{m.text}</p>
                 {m.logged && m.logged.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {m.logged.map((l, j) => (
-                      <span
-                        key={j}
-                        className="inline-flex items-center gap-1 text-[12px] px-2.5 py-1 rounded-full bg-aurora-500/15 text-aurora-300"
-                      >
-                        <CheckCircle2 className="w-3 h-3" /> <AppIcon name={l.emoji} className="w-3 h-3" /> {l.name}
-                      </span>
-                    ))}
+                    {m.logged.map((l, j) => {
+                      const chipStyle = getCategoryStyle(l.category);
+                      return (
+                        <span
+                          key={j}
+                          className={`inline-flex items-center gap-1 text-[12px] px-2.5 py-1 rounded-full ${chipStyle.chipBg} ${chipStyle.chipText}`}
+                        >
+                          <CheckCircle2 className="w-3 h-3" />{" "}
+                          <AppIcon
+                            name={resolveFoodIconKey(l.emoji, l.category)}
+                            className="w-3 h-3"
+                            fill="currentColor"
+                            fillOpacity={0.25}
+                            strokeWidth={1.75}
+                          />{" "}
+                          {l.name}
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
               </div>

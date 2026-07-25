@@ -40,13 +40,13 @@ export function GrowthRing({
           strokeDashoffset={offset}
           style={{
             transition: "stroke-dashoffset 500ms cubic-bezier(0.34,1.2,0.64,1)",
-            filter: "drop-shadow(0 0 6px rgba(124,92,240,0.55))",
+            filter: "drop-shadow(0 0 6px var(--ring-glow, rgba(124,92,240,0.55)))",
           }}
         />
         <defs>
           <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#7c5cf0" />
-            <stop offset="100%" stopColor="#2ecfdd" />
+            <stop offset="0%" stopColor="var(--ring-grad-start, #7c5cf0)" />
+            <stop offset="100%" stopColor="var(--ring-grad-end, #2ecfdd)" />
           </linearGradient>
         </defs>
       </svg>

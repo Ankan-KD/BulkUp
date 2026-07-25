@@ -4,7 +4,7 @@ import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sun, Moon, Monitor, LogOut, Mail } from "lucide-react";
+import { Sun, Moon, Monitor, Heart, LogOut, Mail } from "lucide-react";
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useStore();
@@ -81,20 +81,26 @@ export default function SettingsPage() {
 
       <Card className="p-4">
         <p className="text-sm font-medium mb-3">Theme</p>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {[
             { key: "light", icon: Sun },
             { key: "dark", icon: Moon },
             { key: "system", icon: Monitor },
+            { key: "princess", icon: Heart },
           ].map(({ key, icon: Icon }) => (
             <button
               key={key}
               onClick={() => updateSettings({ theme: key as typeof settings.theme })}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors flex items-center justify-center gap-1.5 capitalize ${
-                settings.theme === key ? "bg-nova-700 text-white border-nova-700" : "border-[var(--border)]"
+              className={`py-2.5 rounded-xl text-sm font-medium border transition-colors flex items-center justify-center gap-1.5 capitalize ${
+                settings.theme === key
+                  ? key === "princess"
+                    ? "bg-[#f4429e] text-white border-[#f4429e]"
+                    : "bg-nova-700 text-white border-nova-700"
+                  : "border-[var(--border)]"
               }`}
             >
-              <Icon className="w-4 h-4" /> {key}
+              <Icon className={`w-4 h-4 ${key === "princess" && settings.theme !== "princess" ? "text-[#f4429e]" : ""}`} />{" "}
+              {key}
             </button>
           ))}
         </div>

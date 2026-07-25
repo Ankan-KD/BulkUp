@@ -1,6 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "./auth";
+import { supabase } from "./supabase";
 import {
   DailyFoodLog,
   DayRecord,
@@ -9,8 +11,6 @@ import {
   WeightEntry,
 } from "./types";
 import { todayISO } from "./utils";
-import { supabase } from "./supabase";
-import { useAuth } from "./auth";
 
 const DEFAULT_SETTINGS: UserSettings = {
   name: "",
@@ -258,6 +258,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         (state.settings.theme === "system" &&
           window.matchMedia("(prefers-color-scheme: dark)").matches);
       root.classList.toggle("dark", wantDark);
+      root.classList.toggle("princess", state.settings.theme === "princess");
     };
     applyTheme();
   }, [state.settings.theme, ready]);
@@ -403,6 +404,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       history: s.history.map((d) => ({ ...d, logs: d.logs.filter((l) => l.foodId !== id) })),
     }));
     if (!supabase || !user) return;
+    supabase
+      .from("day_logs")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("food_id", id)
+      .then(({ error }) => {
+        if (error) console.error("deleteFood (day_logs) failed", error.message);
+      });
     supabase
       .from("foods")
       .delete()

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { FoodTemplate } from "@/lib/types";
-import { AppIcon } from "@/lib/icons";
+import { FoodIcon, getCategoryStyle } from "@/lib/icons";
 import { useStore } from "@/lib/store";
 import { foodProgress } from "@/lib/nutrition";
 import { cn } from "@/lib/utils";
@@ -20,20 +20,22 @@ export function FoodChecklistItem({
   const progress = foodProgress(food, loggedQuantity);
   const done = progress >= 1;
   const step = food.unit === "g" || food.unit === "ml" ? 50 : 1;
+  const style = getCategoryStyle(food.category);
 
   if (food.kind === "binary") {
     return (
       <button
         onClick={() => toggleBinary(food.id)}
         className={cn(
-          "w-full flex items-center gap-3 rounded-xl2 border px-4 py-3.5 shadow-soft transition-all duration-150 active:scale-[0.98] text-left",
+          "w-full flex items-center gap-3 rounded-xl2 border border-l-[3px] px-4 py-3.5 shadow-soft transition-all duration-150 active:scale-[0.98] text-left",
+          style.accentBorder,
           done
             ? "bg-nova-700/10 border-nova-500/40 shadow-glow-nova dark:bg-nova-300/10"
-            : "glass-panel border-[var(--border)]"
+            : cn("glass-panel border-[var(--border)]", style.cardTint)
         )}
       >
         <Checkbox done={done} />
-        <span className="text-xl leading-none"><AppIcon name={food.emoji} className="w-5 h-5" /></span>
+        <FoodIcon iconKey={food.emoji} category={food.category} />
         <span className={cn("flex-1 font-medium text-[15px]", done && "line-through decoration-2 text-[var(--text-muted)]")}>
           {food.name}
         </span>
@@ -47,8 +49,9 @@ export function FoodChecklistItem({
   return (
     <div
       className={cn(
-        "rounded-xl2 border px-4 py-3.5 shadow-soft transition-colors duration-150",
-        done ? "bg-nova-700/10 border-nova-500/40 shadow-glow-nova dark:bg-nova-300/10" : "glass-panel border-[var(--border)]"
+        "rounded-xl2 border border-l-[3px] px-4 py-3.5 shadow-soft transition-colors duration-150",
+        style.accentBorder,
+        done ? "bg-nova-700/10 border-nova-500/40 shadow-glow-nova dark:bg-nova-300/10" : cn("glass-panel border-[var(--border)]", style.cardTint)
       )}
     >
       <button
@@ -56,7 +59,7 @@ export function FoodChecklistItem({
         className="w-full flex items-center gap-3 text-left"
       >
         <Checkbox done={done} progress={progress} />
-        <span className="text-xl leading-none"><AppIcon name={food.emoji} className="w-5 h-5" /></span>
+        <FoodIcon iconKey={food.emoji} category={food.category} />
         <span className={cn("flex-1 font-medium text-[15px]", done && "text-[var(--text)]")}>
           {food.name}
         </span>

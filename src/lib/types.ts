@@ -49,7 +49,7 @@ export interface UserSettings {
   startWeightKg: number;
   waterGoalMl: number;
   units: "metric" | "imperial";
-  theme: "light" | "dark" | "system";
+  theme: "light" | "dark" | "system" | "princess";
   onboarded: boolean;
 }
 

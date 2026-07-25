@@ -22,6 +22,20 @@
   --nebula-2: rgba(46, 207, 221, 0.14);
 }
 
+/* ── Princess mode: soft pink, sparkly, super cute ────────────────────── */
+.princess {
+  --bg: #fff3fa;
+  --bg-elevated: #ffffff;
+  --text: #c00855de;
+  --text-muted: #d635b1d3;
+  --border: #ffd6ec;
+  --nebula-1: rgba(244, 66, 158, 0.12);
+  --nebula-2: rgba(187, 102, 251, 0.10);
+  --ring-grad-start: #ff6fb8;
+  --ring-grad-end: #fa0068fa;
+  --ring-glow: rgba(244, 66, 158, 0.5);
+}
+
 html {
   -webkit-tap-highlight-color: transparent;
 }
@@ -47,6 +61,37 @@ body::before {
     radial-gradient(ellipse 50% 35% at 100% 20%, var(--nebula-2), transparent 60%),
     radial-gradient(ellipse 60% 50% at 50% 100%, var(--nebula-1), transparent 65%);
 }
+
+/* Scattered hearts, sparkles & stars doodled across the princess backdrop.
+   Same lightweight technique as the dark-mode starfield: fixed, pure CSS,
+   no canvas/JS. */
+   .princess::after {
+    content: "";
+    position: fixed;
+    inset: -20px;
+    z-index: -2;
+    pointer-events: none;
+  
+    background-image: url("/princess-bg.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  
+    filter: blur(3px);
+    transform: scale(1.1);
+  }
+  
+  .princess::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  
+    background: rgba(199, 163, 194, 0.61);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(8px);
+  }
 
 .dark body::after {
   content: "";
@@ -82,6 +127,9 @@ body::before {
   background: rgba(124, 92, 240, 0.3);
   border-radius: 999px;
 }
+.princess ::-webkit-scrollbar-thumb {
+  background: rgba(244, 66, 158, 0.35);
+}
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
@@ -107,6 +155,10 @@ body::before {
   background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
   backdrop-filter: blur(14px);
 }
+.princess .glass-panel {
+  background: linear-gradient(160deg, rgba(237, 184, 241, 0.637), rgba(255,240,250,0.65));
+  box-shadow: 0 2px 14px -4px rgba(244, 66, 158, 0.18);
+}
 
 .text-glow-nova {
   text-shadow: 0 0 18px rgba(124, 92, 240, 0.55);
@@ -114,6 +166,33 @@ body::before {
 .text-glow-aurora {
   text-shadow: 0 0 18px rgba(46, 207, 221, 0.5);
 }
+.princess .text-glow-nova {
+  text-shadow: 0 0 18px rgba(244, 66, 158, 0.5);
+}
+.princess .text-glow-aurora {
+  text-shadow: 0 0 18px rgba(187, 102, 251, 0.45);
+}
+
+/* Softer, warmer card shadows + pink glows to match the princess palette */
+.princess .shadow-soft {
+  box-shadow: 0 2px 10px -2px rgba(244, 66, 158, 0.12), 0 1px 2px rgba(244, 66, 158, 0.08);
+}
+.princess .shadow-card {
+  box-shadow: 0 8px 30px -6px rgba(244, 66, 158, 0.2);
+}
+.princess .shadow-glow {
+  box-shadow: 0 0 0 4px rgba(244, 66, 158, 0.16);
+}
+.princess .shadow-glow-nova {
+  box-shadow: 0 0 24px -4px rgba(244, 66, 158, 0.55), 0 0 4px rgba(244, 66, 158, 0.4);
+}
+.princess .shadow-glow-aurora {
+  box-shadow: 0 0 24px -4px rgba(187, 102, 251, 0.5), 0 0 4px rgba(187, 102, 251, 0.35);
+}
+.princess .shadow-glow-ember {
+  box-shadow: 0 0 24px -4px rgba(255, 148, 33, 0.45), 0 0 4px rgba(255, 148, 33, 0.3);
+}
+
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -122,3 +201,68 @@ body::before {
     transition-duration: 0.01ms !important;
   }
 }
+.princess .bg-aurora-200\/30 { background-color: rgb(228 186 255 / 0.3) !important; }
+.princess .bg-aurora-900\/10 { background-color: rgb(66 23 96 / 0.1) !important; }
+.princess .bg-aurora-900\/20 { background-color: rgb(66 23 96 / 0.2) !important; }
+.princess .bg-ember-500\/10 { background-color: rgb(255 148 33 / 0.1) !important; }
+.princess .bg-ember-600 { background-color: #f27a0f !important; }
+.princess .bg-ember-600\/10 { background-color: rgb(242 122 15 / 0.1) !important; }
+.princess .bg-ember-700 { background-color: #c95f0c !important; }
+.princess .bg-nova-100\/10 { background-color: rgb(255 224 239 / 0.1) !important; }
+.princess .bg-nova-100\/8 { background-color: rgb(255 224 239 / 0.08) !important; }
+.princess .bg-nova-200\/40 { background-color: rgb(255 194 224 / 0.4) !important; }
+.princess .bg-nova-300\/10 { background-color: rgb(255 155 207 / 0.1) !important; }
+.princess .bg-nova-500\/10 { background-color: rgb(244 66 158 / 0.1) !important; }
+.princess .bg-nova-600 { background-color: #e0278a !important; }
+.princess .bg-nova-700 { background-color: #c01870 !important; }
+.princess .bg-nova-700\/10 { background-color: rgba(231, 214, 223, 0.24) !important; }
+.princess .bg-nova-700\/12 { background-color: rgba(192, 24, 111, 0.274) !important; }
+.princess .bg-nova-700\/14 { background-color: rgba(192, 24, 111, 0.24) !important; }
+.princess .bg-nova-700\/15 { background-color: rgba(192, 24, 111, 0.288) !important; }
+.princess .bg-nova-700\/6 { background-color: rgba(192, 24, 111, 0.219) !important; }
+.princess .bg-nova-700\/8 { background-color: rgba(192, 24, 111, 0.199) !important; }
+.princess .bg-nova-900\/20 { background-color: rgba(112, 14, 68, 0.315) !important; }
+.princess .bg-void-950\/60 { background-color: rgba(31, 15, 26, 0.589) !important; }
+.princess .border-ember-500\/40 { border-color: rgb(255 148 33 / 0.4) !important; }
+.princess .border-nova-300 { border-color: #ff9bcf !important; }
+.princess .border-nova-500 { border-color: #f4429e !important; }
+.princess .border-nova-500\/40 { border-color: rgb(244 66 158 / 0.4) !important; }
+.princess .border-nova-600 { border-color: #e0278a !important; }
+.princess .border-nova-700 { border-color: #c01870 !important; }
+.princess .fill-aurora-400 { fill: #bb66fb !important; }
+.princess .fill-nova-100\/10 { fill: rgb(255 224 239 / 0.1) !important; }
+.princess .fill-nova-200 { fill: #ffc2e0 !important; }
+.princess .fill-nova-300 { fill: #ff9bcf !important; }
+.princess .fill-nova-400 { fill: #ff6fb8 !important; }
+.princess .fill-nova-500 { fill: #f4429e !important; }
+.princess .fill-nova-700 { fill: #c01870 !important; }
+.princess .fill-nova-800\/10 { fill: rgb(150 18 90 / 0.1) !important; }
+.princess .from-aurora-300 { --tw-gradient-from: #d190ff !important; --tw-gradient-to: rgb(209 144 255 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+.princess .from-aurora-400 { --tw-gradient-from: #bb66fb !important; --tw-gradient-to: rgb(187 102 251 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+.princess .from-aurora-500 { --tw-gradient-from: #a144e8 !important; --tw-gradient-to: rgb(161 68 232 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+.princess .from-nova-400 { --tw-gradient-from: #ff6fb8 !important; --tw-gradient-to: rgb(255 111 184 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+.princess .from-nova-500 { --tw-gradient-from: #f4429e !important; --tw-gradient-to: rgb(244 66 158 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+.princess .from-nova-600 { --tw-gradient-from: #e0278a !important; --tw-gradient-to: rgb(224 39 138 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+.princess .from-nova-700 { --tw-gradient-from: #c01870 !important; --tw-gradient-to: rgb(192 24 112 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+.princess .ring-nova-500 { --tw-ring-color: #f4429e !important; }
+.princess .stroke-nova-100 { stroke: #ffe0ef !important; }
+.princess .stroke-nova-500 { stroke: #f4429e !important; }
+.princess .stroke-nova-900 { stroke: #700e44 !important; }
+.princess .text-aurora-400 { color: #92008b !important; }
+.princess .text-aurora-500 { color: #a144e8 !important; }
+.princess .text-aurora-600 { color: #8a2fce !important; }
+.princess .text-ember-300 { color: #ffc158 !important; }
+.princess .text-ember-400 { color: #ffab3d !important; }
+.princess .text-ember-600 { color: #f27a0f !important; }
+.princess .text-nova-300 { color: #ff9bcf !important; }
+.princess .text-nova-400 { color: #ff6fb8 !important; }
+.princess .text-nova-600 { color: #e0278a !important; }
+.princess .text-nova-700 { color: #c01870 !important; }
+.princess .text-void-950 { color: #1f0f1a !important; }
+.princess .to-aurora-300 { --tw-gradient-to: #d190ff !important; }
+.princess .to-aurora-400 { --tw-gradient-to: #bb66fb !important; }
+.princess .to-aurora-500 { --tw-gradient-to: #a144e8 !important; }
+.princess .to-aurora-600 { --tw-gradient-to: #8a2fce !important; }
+.princess .to-nova-600 { --tw-gradient-to: #e0278a !important; }
+.princess .to-nova-700 { --tw-gradient-to: #c01870 !important; }
+.princess .to-nova-800 { --tw-gradient-to: #96125a !important; }
