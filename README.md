@@ -1,42 +1,59 @@
 # 🌱 BulkUp — Weight Gain Tracker
 
-A simple, fast, mobile-first habit tracker for gaining weight — built around
-completing foods, not counting calories.
+BulkUp is a modern weight gain tracker that helps users build healthy eating habits by tracking daily meals, weight progress, and nutrition.
 
-## Getting started
+## Features
+
+- 🔐 Email & Google Authentication (Supabase Auth)
+- 🍽️ Daily food checklist
+- ⚖️ Weight tracking & goal management
+- 📊 Dashboard with nutrition summary
+- 📅 History of daily logs
+- ⚙️ User settings & preferences
+- ☁️ Cloud sync with Supabase
+
+## Tech Stack
+
+- Next.js 15 (App Router)
+- TypeScript
+- Tailwind CSS
+- Supabase (Auth + PostgreSQL + RLS)
+- Lucide React
+
+## Getting Started
+
+Install dependencies:
 
 ```bash
 npm install
+```
+
+Create a `.env.local` file:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+Run the development server:
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The app runs entirely on
-local mock data (saved to your browser's localStorage) out of the box — no
-setup required to try it.
+Open **http://localhost:3000**
 
-## Wiring up the real backend (optional)
+## Database Setup
 
-Copy `.env.example` to `.env.local` and fill in:
+1. Create a Supabase project.
+2. Run `supabase/schema.sql`.
+3. Enable the Data API and expose the application tables.
+4. Configure Email and Google Authentication (optional).
 
-- **Supabase** — create a project, run the schema commented in
-  `src/lib/supabase.ts`, and add your project URL + anon key. This enables
-  real email/Google auth and per-user cloud storage instead of localStorage.
-- **OpenAI** — add an API key to make Quick Log use real AI parsing
-  (`gpt-4o-mini`) instead of the built-in local heuristic parser. Both work
-  the same way from the UI — the AI version just understands more phrasing.
+## Deployment
 
-## What's inside
+The project is ready for deployment on **Vercel**. Add the required environment variables and update the Supabase Site URL and Redirect URLs after deployment.
 
-- **Dashboard** — the daily growth ring (calories), today's food checklist,
-  and compact nutrition summary.
-- **Foods** — recurring food templates that drive the checklist and AI log.
-- **Quick Log** — type what you ate in plain language; it's parsed and
-  checked off automatically, no confirmation screens.
-- **Weight** — current weight, goal, gained, and a simple trend.
-- **History** — daily completion records.
-- **Settings** — goals, units, theme.
+## License
 
-## Stack
-
-Next.js 15 (App Router) · TypeScript · Tailwind CSS · lucide-react ·
-Supabase · OpenAI — exactly the stack in the brief, no extra tooling.
+Educational and personal use.
