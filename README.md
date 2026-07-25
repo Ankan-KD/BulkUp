@@ -1,4 +1,4 @@
-# 🌱 Sprout — Weight Gain Tracker
+# 🌱 BulkUp — Weight Gain Tracker
 
 A simple, fast, mobile-first habit tracker for gaining weight — built around
 completing foods, not counting calories.
