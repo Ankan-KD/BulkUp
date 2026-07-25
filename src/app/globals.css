@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f3f2fb;
+  --bg-elevated: #ffffff;
+  --text: #191631;
+  --text-muted: #64608a;
+  --border: #e2ddf5;
+  --nebula-1: rgba(124, 92, 240, 0.10);
+  --nebula-2: rgba(46, 207, 221, 0.08);
+}
+
+.dark {
+  --bg: #05060f;
+  --bg-elevated: #11122a;
+  --text: #eceafc;
+  --text-muted: #9793c2;
+  --border: rgba(255, 255, 255, 0.08);
+  --nebula-1: rgba(124, 92, 240, 0.22);
+  --nebula-2: rgba(46, 207, 221, 0.14);
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  position: relative;
+}
+
+/* Lightweight cosmic backdrop: a couple of blurred radial gradients plus a
+   cheap repeating star pattern. Pure CSS, fixed position, no canvas/JS —
+   stays smooth on low-end mobiles. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 40% at 15% 0%, var(--nebula-1), transparent 60%),
+    radial-gradient(ellipse 50% 35% at 100% 20%, var(--nebula-2), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 50% 100%, var(--nebula-1), transparent 65%);
+}
+
+.dark body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image:
+    radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.9) 0%, transparent 60%),
+    radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.7) 0%, transparent 60%),
+    radial-gradient(1.5px 1.5px at 60% 65%, rgba(255,255,255,0.8) 0%, transparent 60%),
+    radial-gradient(1px 1px at 30% 80%, rgba(255,255,255,0.6) 0%, transparent 60%),
+    radial-gradient(1px 1px at 90% 75%, rgba(255,255,255,0.7) 0%, transparent 60%),
+    radial-gradient(1.5px 1.5px at 45% 35%, rgba(255,255,255,0.9) 0%, transparent 60%),
+    radial-gradient(1px 1px at 20% 55%, rgba(255,255,255,0.5) 0%, transparent 60%);
+  background-repeat: repeat;
+  background-size: 100% 100%;
+}
+
+@supports (font-variation-settings: normal) {
+  html {
+    font-optical-sizing: auto;
+  }
+}
+
+/* Custom scrollbar, subtle */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(124, 92, 240, 0.3);
+  border-radius: 999px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Focus visibility for accessibility */
+:focus-visible {
+  outline: 2px solid #8a6cf5;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Reusable glass-card look for the dark cosmic theme */
+.glass-panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.dark .glass-panel {
+  background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
+  backdrop-filter: blur(14px);
+}
+
+.text-glow-nova {
+  text-shadow: 0 0 18px rgba(124, 92, 240, 0.55);
+}
+.text-glow-aurora {
+  text-shadow: 0 0 18px rgba(46, 207, 221, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
