@@ -1,11 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Sheet } from "./ui/sheet";
 import { useStore } from "@/lib/store";
-import { FoodTemplate } from "@/lib/types";
-import { AppIcon, resolveFoodIconKey, getCategoryStyle } from "@/lib/icons";
-import { Sparkles, Send, Mic, MicOff, Loader2, CheckCircle2 } from "lucide-react";
+import { FoodTemplate, GoalMode } from "@/lib/types";
+import { AppIcon, FoodIcon, resolveFoodIconKey, getCategoryStyle } from "@/lib/icons";
+import { computeTotals } from "@/lib/nutrition";
+import { coachSubheading, coachQuickPrompts } from "@/lib/goalCopy";
+import {
+  Sparkles,
+  Send,
+  Mic,
+  MicOff,
+  Loader2,
+  CheckCircle2,
+  Zap,
+  ChevronRight,
+  Compass,
+  Plus,
+} from "lucide-react";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -34,10 +48,35 @@ interface ChatAction {
 
 const GREETING: ChatMessage = {
   role: "assistant",
-  text: "Tell me what you ate — one thing or ten, in your own words. I'll figure out the rest 🌱",
+  text: "Tell me what you ate — one thing or ten, in your own words. I'll figure out the rest.",
 };
 
 const EXAMPLES = ["I had chicken biriyani", "3 eggs and a glass of milk", "Finished half my chicken"];
+
+// ── AI Nutrition Coach (Phase 4) ────────────────────────────────────────
+// Separate, read-mostly conversation: the coach only recommends food, it
+// never logs on its own — the user taps a suggestion to log it, keeping
+// the existing "describe what I ate" logging workflow completely untouched.
+
+interface CoachSuggestion {
+  foodId?: string;
+  name: string;
+  emoji?: string;
+  category?: string;
+  quantityConsumed?: number;
+  reason: string;
+}
+
+interface CoachMessage {
+  role: "user" | "assistant";
+  text: string;
+  suggestions?: CoachSuggestion[];
+}
+
+const COACH_GREETING: CoachMessage = {
+  role: "assistant",
+  text: "Ask me anything — what to eat right now, whether you're on track, or a swap idea.",
+};
 
 // Minimal ambient typing for the Web Speech API, which isn't in default TS libs.
 type SpeechRecognitionLike = {
@@ -52,10 +91,32 @@ type SpeechRecognitionLike = {
 };
 
 export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { foods, addQuantity, logQuantity, createAndLogFood } = useStore();
+  const { foods, addQuantity, logQuantity, createAndLogFood, combos, logCombo, settings, today } = useStore();
+  const [tab, setTab] = useState<"describe" | "combos" | "coach">("describe");
+  const [comboFeedback, setComboFeedback] = useState<{ comboId: string; skipped: string[] } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Today's remaining calories/protein, shared by both the logging chat
+  // (so its replies can be coach-flavored) and the dedicated Coach tab.
+  const totalsSoFar = useMemo(() => computeTotals(foods, today), [foods, today]);
+  const coachContext = useMemo(
+    () => ({
+      goalMode: settings.goalMode as GoalMode,
+      calorieGoal: settings.calorieGoal,
+      proteinGoal: settings.proteinGoal,
+      caloriesSoFar: totalsSoFar.calories,
+      proteinSoFar: totalsSoFar.protein,
+    }),
+    [settings.goalMode, settings.calorieGoal, settings.proteinGoal, totalsSoFar]
+  );
+
+  const [coachMessages, setCoachMessages] = useState<CoachMessage[]>([COACH_GREETING]);
+  const [coachText, setCoachText] = useState("");
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [loggedSuggestions, setLoggedSuggestions] = useState<Set<string>>(new Set());
+  const coachScrollRef = useRef<HTMLDivElement>(null);
   const [listening, setListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -123,6 +184,10 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
+
+  useEffect(() => {
+    coachScrollRef.current?.scrollTo({ top: coachScrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [coachMessages, coachLoading]);
 
   function toggleMic() {
     if (!recognitionRef.current) return;
@@ -196,6 +261,7 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
             .filter((m) => m !== GREETING)
             .map((m) => ({ role: m.role, text: m.text })),
           foods: foodsRef.current,
+          coach: coachContext,
         }),
       });
       const data = await res.json();
@@ -225,15 +291,265 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
     setText("");
   }
 
+  async function sendCoach(value?: string) {
+    const input = (value ?? coachText).trim();
+    if (!input || coachLoading) return;
+    const history = [...coachMessages, { role: "user" as const, text: input }];
+    setCoachMessages(history);
+    setCoachText("");
+    setCoachLoading(true);
+
+    try {
+      const res = await fetch("/api/nutrition-coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: history
+            .filter((m) => m !== COACH_GREETING)
+            .map((m) => ({ role: m.role, text: m.text })),
+          foods: foodsRef.current,
+          coach: coachContext,
+        }),
+      });
+      const data = await res.json();
+      const suggestions: CoachSuggestion[] = Array.isArray(data.suggestions) ? data.suggestions : [];
+      setCoachMessages((m) => [
+        ...m,
+        { role: "assistant", text: data.reply || "Here's what I'd suggest.", suggestions },
+      ]);
+    } catch {
+      setCoachMessages((m) => [
+        ...m,
+        { role: "assistant", text: "Hmm, I couldn't reach the server just now — mind trying again?" },
+      ]);
+    } finally {
+      setCoachLoading(false);
+    }
+  }
+
+  function resetCoachConversation() {
+    setCoachMessages([COACH_GREETING]);
+    setCoachText("");
+    setLoggedSuggestions(new Set());
+  }
+
+  // Logs a suggestion the coach recommended. Only suggestions tied to a
+  // real food in the library (foodId) are tappable — general ideas outside
+  // the library are informational only, since they carry no nutrition data
+  // to log accurately.
+  function applySuggestion(key: string, suggestion: CoachSuggestion) {
+    if (!suggestion.foodId || loggedSuggestions.has(key)) return;
+    const food = foodsRef.current.find((f) => f.id === suggestion.foodId);
+    if (!food) return;
+    if (food.kind === "binary" || typeof suggestion.quantityConsumed !== "number") {
+      logQuantity(food.id, food.targetQuantity);
+    } else {
+      addQuantity(food.id, suggestion.quantityConsumed);
+    }
+    setLoggedSuggestions((prev) => new Set(prev).add(key));
+  }
+
+  function handleLogCombo(id: string) {
+    const result = logCombo(id);
+    if (result.skippedNames.length > 0) {
+      // Not scheduled for today — explain what happened instead of closing
+      // and leaving the person to wonder why their totals didn't fully move.
+      setComboFeedback({ comboId: id, skipped: result.skippedNames });
+      setTimeout(() => {
+        setComboFeedback(null);
+        onClose();
+      }, 2000);
+    } else {
+      onClose();
+    }
+  }
+
   return (
     <Sheet
       open={open}
       onClose={() => {
         onClose();
       }}
-      title="AI Quick Log"
+      title="Log"
     >
       <div className="flex flex-col h-[65vh] max-h-[560px]">
+        {/* Describe / Combos / Coach toggle — Describe & Combos log food (unchanged Phase 1-3 workflow); Coach only recommends, tap a suggestion to log it */}
+        <div className="flex gap-1 p-1 mb-3 rounded-xl bg-nova-700/8 shrink-0">
+          <button
+            onClick={() => setTab("describe")}
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] font-medium transition-colors ${
+              tab === "describe" ? "bg-[var(--bg-elevated)] shadow-soft" : "text-[var(--text-muted)]"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" /> Describe
+          </button>
+          <button
+            onClick={() => setTab("combos")}
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] font-medium transition-colors ${
+              tab === "combos" ? "bg-[var(--bg-elevated)] shadow-soft" : "text-[var(--text-muted)]"
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5" /> Combos
+          </button>
+          <button
+            onClick={() => setTab("coach")}
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] font-medium transition-colors ${
+              tab === "coach" ? "bg-[var(--bg-elevated)] shadow-soft" : "text-[var(--text-muted)]"
+            }`}
+          >
+            <Compass className="w-3.5 h-3.5" /> Coach
+          </button>
+        </div>
+
+        {tab === "combos" ? (
+          <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pb-3">
+            {comboFeedback && (
+              <div className="rounded-lg bg-ember-500/10 border border-ember-500/30 px-3 py-2 text-[12px] text-ember-600">
+                {comboFeedback.skipped.join(", ")} {comboFeedback.skipped.length === 1 ? "isn't" : "aren't"} scheduled
+                for today, so {comboFeedback.skipped.length === 1 ? "it wasn't" : "they weren't"} logged.
+              </div>
+            )}
+            {combos.length > 0 ? (
+              combos.map((combo) => (
+                <button
+                  key={combo.id}
+                  onClick={() => handleLogCombo(combo.id)}
+                  disabled={combo.items.length === 0}
+                  className="w-full flex items-center gap-3 rounded-xl2 border border-[var(--border)] glass-panel px-3.5 py-3 shadow-soft active:scale-[0.98] transition-all disabled:opacity-40"
+                >
+                  <FoodIcon iconKey={combo.icon} size="sm" />
+                  <span className="text-sm font-medium flex-1 text-left">{combo.name}</span>
+                  <span className="text-[11px] text-[var(--text-muted)]">
+                    {combo.items.length} item{combo.items.length === 1 ? "" : "s"}
+                  </span>
+                </button>
+              ))
+            ) : (
+              <Link href="/combos" onClick={onClose}>
+                <div className="rounded-xl2 border border-[var(--border)] bg-[var(--bg-elevated)] p-4 flex items-center justify-between">
+                  <p className="text-sm text-[var(--text-muted)]">
+                    Save meals you eat often to log them in one tap.
+                  </p>
+                  <ChevronRight className="w-4 h-4 text-[var(--text-muted)] shrink-0" />
+                </div>
+              </Link>
+            )}
+          </div>
+        ) : tab === "coach" ? (
+          <>
+            <p className="text-[13px] text-[var(--text-muted)] -mt-1 mb-3 shrink-0">
+              {coachSubheading(settings.goalMode)}
+            </p>
+            <div ref={coachScrollRef} className="flex-1 overflow-y-auto no-scrollbar space-y-3 pb-3">
+              {coachMessages.map((m, i) => (
+                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-[14px] leading-snug ${
+                      m.role === "user"
+                        ? "bg-gradient-to-br from-nova-600 to-nova-700 text-white rounded-br-sm"
+                        : "glass-panel border border-[var(--border)] rounded-bl-sm"
+                    }`}
+                  >
+                    <p>{m.text}</p>
+                    {m.suggestions && m.suggestions.length > 0 && (
+                      <div className="mt-2.5 space-y-1.5">
+                        {m.suggestions.map((s, j) => {
+                          const key = `${i}-${j}`;
+                          const logged = loggedSuggestions.has(key);
+                          const chipStyle = getCategoryStyle(s.category);
+                          const tappable = !!s.foodId;
+                          return (
+                            <button
+                              key={j}
+                              type="button"
+                              onClick={() => applySuggestion(key, s)}
+                              disabled={!tappable || logged}
+                              className={`w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-all ${
+                                tappable
+                                  ? `${chipStyle.chipBg} active:scale-[0.98] disabled:opacity-60`
+                                  : "bg-nova-700/6 dark:bg-nova-100/6"
+                              }`}
+                            >
+                              {tappable && (
+                                <AppIcon
+                                  name={resolveFoodIconKey(s.emoji, s.category)}
+                                  className={`w-4 h-4 shrink-0 ${chipStyle.chipText}`}
+                                  fill="currentColor"
+                                  fillOpacity={0.2}
+                                  strokeWidth={1.75}
+                                />
+                              )}
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-[13px] font-medium truncate">{s.name}</span>
+                                <span className="block text-[11px] text-[var(--text-muted)] truncate">{s.reason}</span>
+                              </span>
+                              {tappable &&
+                                (logged ? (
+                                  <CheckCircle2 className="w-4 h-4 shrink-0 text-aurora-500" />
+                                ) : (
+                                  <Plus className={`w-4 h-4 shrink-0 ${chipStyle.chipText}`} />
+                                ))}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {coachLoading && (
+                <div className="flex justify-start">
+                  <div className="glass-panel border border-[var(--border)] rounded-2xl rounded-bl-sm px-4 py-2.5">
+                    <Loader2 className="w-4 h-4 animate-spin text-nova-400" />
+                  </div>
+                </div>
+              )}
+              {coachMessages.length === 1 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {coachQuickPrompts(settings.goalMode).map((ex) => (
+                    <button
+                      key={ex}
+                      onClick={() => sendCoach(ex)}
+                      className="text-xs px-3 py-1.5 rounded-full bg-nova-700/8 hover:bg-nova-700/14 text-[var(--text-muted)] transition-colors"
+                    >
+                      {ex}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-end gap-2 pt-2 border-t border-[var(--border)]">
+              <textarea
+                value={coachText}
+                onChange={(e) => setCoachText(e.target.value)}
+                placeholder="Ask your coach…"
+                rows={1}
+                className="flex-1 resize-none rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-[15px] focus:border-nova-500 outline-none placeholder:text-[var(--text-muted)]"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendCoach();
+                  }
+                }}
+              />
+              <button
+                onClick={() => sendCoach()}
+                disabled={coachLoading || !coachText.trim()}
+                aria-label="Send"
+                className="h-11 w-11 shrink-0 flex items-center justify-center rounded-xl bg-gradient-to-br from-nova-500 to-nova-700 text-white shadow-glow-nova disabled:opacity-40 active:scale-95 transition-transform"
+              >
+                <Send className="w-[18px] h-[18px]" />
+              </button>
+            </div>
+            {coachMessages.length > 1 && (
+              <button onClick={resetCoachConversation} className="mt-2 text-[11px] text-[var(--text-muted)] self-center">
+                Start a new conversation
+              </button>
+            )}
+          </>
+        ) : (
+        <>
         <div ref={scrollRef} className="flex-1 overflow-y-auto no-scrollbar space-y-3 pb-3">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -334,6 +650,8 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
           <button onClick={resetConversation} className="mt-2 text-[11px] text-[var(--text-muted)] self-center">
             Start a new conversation
           </button>
+        )}
+        </>
         )}
       </div>
     </Sheet>

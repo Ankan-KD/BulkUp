@@ -1,6 +1,6 @@
-# 🌱 BulkUp — Weight Gain Tracker
+# BodyBuddy — Goal-Based Nutrition Companion
 
-BulkUp is a modern weight gain tracker that helps users build healthy eating habits by tracking daily meals, weight progress, and nutrition.
+BodyBuddy is a modern nutrition companion that helps users gain, lose, or maintain weight by tracking daily meals, weight progress, and nutrition — all adapted to the goal they choose.
 
 ## Features
 
@@ -9,6 +9,8 @@ BulkUp is a modern weight gain tracker that helps users build healthy eating hab
 - ⚖️ Weight tracking & goal management
 - 📊 Dashboard with nutrition summary
 - 📅 History of daily logs
+- 🔥 Streaks & goal-aware achievement milestones
+- 🧠 AI Nutrition Coach — goal-aware "what can I eat right now?" recommendations and practical, actionable logging replies (Gemini)
 - ⚙️ User settings & preferences
 - ☁️ Cloud sync with Supabase
 

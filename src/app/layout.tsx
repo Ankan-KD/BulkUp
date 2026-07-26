@@ -17,8 +17,8 @@ const body = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "BulkUp — Weight Gain Tracker",
-  description: "A simple daily habit tracker for gaining weight, one food at a time.",
+  title: "BodyBuddy — Goal-Based Nutrition Companion",
+  description: "A simple daily habit tracker for gaining, losing, or maintaining weight, one food at a time.",
 };
 
 export const viewport: Viewport = {

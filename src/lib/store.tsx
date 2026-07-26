@@ -7,6 +7,9 @@ import {
   DailyFoodLog,
   DayRecord,
   FoodTemplate,
+  MealCombo,
+  MilestoneKey,
+  MilestoneRecord,
   UserSettings,
   WeightEntry,
 } from "./types";
@@ -14,6 +17,7 @@ import { todayISO } from "./utils";
 
 const DEFAULT_SETTINGS: UserSettings = {
   name: "",
+  goalMode: "gain",
   calorieGoal: 3500,
   proteinGoal: 180,
   goalWeightKg: 80,
@@ -70,6 +74,7 @@ function foodFromRow(r: FoodRow): FoodTemplate {
 
 interface SettingsRow {
   name: string;
+  goal_mode: string;
   calorie_goal: number;
   protein_goal: number;
   goal_weight_kg: number;
@@ -83,6 +88,7 @@ interface SettingsRow {
 function settingsFromRow(r: SettingsRow): UserSettings {
   return {
     name: r.name ?? "",
+    goalMode: (r.goal_mode as UserSettings["goalMode"]) || "gain",
     calorieGoal: Number(r.calorie_goal),
     proteinGoal: Number(r.protein_goal),
     goalWeightKg: Number(r.goal_weight_kg),
@@ -97,6 +103,7 @@ function settingsFromRow(r: SettingsRow): UserSettings {
 function settingsToRow(s: Partial<UserSettings>) {
   const row: Record<string, unknown> = {};
   if (s.name !== undefined) row.name = s.name;
+  if (s.goalMode !== undefined) row.goal_mode = s.goalMode;
   if (s.calorieGoal !== undefined) row.calorie_goal = s.calorieGoal;
   if (s.proteinGoal !== undefined) row.protein_goal = s.proteinGoal;
   if (s.goalWeightKg !== undefined) row.goal_weight_kg = s.goalWeightKg;
@@ -112,12 +119,45 @@ function emptyDay(date: string): DayRecord {
   return { date, logs: [], waterMl: 0 };
 }
 
+interface ComboRow {
+  id: string;
+  name: string;
+  icon: string;
+  items: { foodId: string; quantity: number }[] | null;
+  sort_order: number;
+}
+
+function comboFromRow(r: ComboRow): MealCombo {
+  return {
+    id: r.id,
+    name: r.name,
+    icon: r.icon || "UtensilsCrossed",
+    items: Array.isArray(r.items)
+      ? r.items
+          .filter((i) => i && typeof i.foodId === "string")
+          .map((i) => ({ foodId: i.foodId, quantity: Number(i.quantity) || 0 }))
+      : [],
+    sortOrder: r.sort_order,
+  };
+}
+
+interface MilestoneRow {
+  key: string;
+  achieved_at: string;
+}
+
+function milestoneFromRow(r: MilestoneRow): MilestoneRecord {
+  return { key: r.key as MilestoneKey, achievedAt: r.achieved_at };
+}
+
 interface StoreShape {
   settings: UserSettings;
   foods: FoodTemplate[];
   today: DayRecord;
   history: DayRecord[];
   weights: WeightEntry[];
+  combos: MealCombo[];
+  milestones: MilestoneRecord[];
 }
 
 interface StoreContextValue extends StoreShape {
@@ -132,6 +172,12 @@ interface StoreContextValue extends StoreShape {
   toggleBinary: (foodId: string) => void;
   addWaterMl: (delta: number) => void;
   addWeightEntry: (weightKg: number) => void;
+  addCombo: (combo: Omit<MealCombo, "id" | "sortOrder">) => void;
+  updateCombo: (id: string, patch: Partial<Omit<MealCombo, "id" | "sortOrder">>) => void;
+  duplicateCombo: (id: string) => void;
+  deleteCombo: (id: string) => void;
+  logCombo: (id: string) => { loggedNames: string[]; skippedNames: string[] };
+  recordMilestone: (key: MilestoneKey) => void;
   ready: boolean;
 }
 
@@ -147,6 +193,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     today: emptyDay(todayISO()),
     history: [],
     weights: [],
+    combos: [],
+    milestones: [],
   });
   const [ready, setReady] = useState(false);
   const stateRef = useRef(state);
@@ -161,6 +209,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         today: emptyDay(todayISO()),
         history: [],
         weights: [],
+        combos: [],
+        milestones: [],
       });
       setReady(!user ? true : false);
       return;
@@ -175,7 +225,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       since.setDate(since.getDate() - HISTORY_WINDOW_DAYS);
       const sinceISO = since.toISOString().slice(0, 10);
 
-      const [settingsRes, foodsRes, logsRes, waterRes, weightsRes] = await Promise.all([
+      const [settingsRes, foodsRes, logsRes, waterRes, weightsRes, combosRes, milestonesRes] = await Promise.all([
         supabase!.from("user_settings").select("*").eq("user_id", uid).maybeSingle(),
         supabase!.from("foods").select("*").eq("user_id", uid).order("sort_order", { ascending: true }),
         supabase!
@@ -189,6 +239,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           .eq("user_id", uid)
           .gte("date", sinceISO),
         supabase!.from("weight_entries").select("*").eq("user_id", uid).order("date", { ascending: true }),
+        supabase!.from("meal_combos").select("*").eq("user_id", uid).order("sort_order", { ascending: true }),
+        supabase!.from("milestones").select("*").eq("user_id", uid),
       ]);
 
       if (cancelled) return;
@@ -199,6 +251,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         date: w.date,
         weightKg: Number(w.weight_kg),
       }));
+      const combos = (combosRes.data ?? []).map(comboFromRow);
+      const milestones = (milestonesRes.data ?? []).map(milestoneFromRow);
 
       const byDate = new Map<string, DayRecord>();
       function dayFor(date: string): DayRecord {
@@ -225,7 +279,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       byDate.delete(today);
       const history = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 
-      setState({ settings, foods, today: todayRecord, history, weights });
+      setState({ settings, foods, today: todayRecord, history, weights, combos, milestones });
       setReady(true);
     }
 
@@ -240,6 +294,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "daily_water", filter: `user_id=eq.${uid}` }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "weight_entries", filter: `user_id=eq.${uid}` }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "user_settings", filter: `user_id=eq.${uid}` }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "meal_combos", filter: `user_id=eq.${uid}` }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "milestones", filter: `user_id=eq.${uid}` }, () => load())
       .subscribe();
 
     return () => {
@@ -494,6 +550,125 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
   }
 
+  // ── Meal Combos ─────────────────────────────────────────────────────
+
+  function addCombo(combo: Omit<MealCombo, "id" | "sortOrder">) {
+    if (!supabase || !user) return;
+    const sortOrder = stateRef.current.combos.length;
+    const tempId = `temp-${Date.now()}`;
+    const optimistic: MealCombo = { ...combo, id: tempId, sortOrder };
+    setState((s) => ({ ...s, combos: [...s.combos, optimistic] }));
+
+    supabase
+      .from("meal_combos")
+      .insert({
+        user_id: user.id,
+        name: combo.name,
+        icon: combo.icon,
+        items: combo.items,
+        sort_order: sortOrder,
+      })
+      .select()
+      .single()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("addCombo failed", error.message);
+          setState((s) => ({ ...s, combos: s.combos.filter((c) => c.id !== tempId) }));
+          return;
+        }
+        if (data) {
+          setState((s) => ({
+            ...s,
+            combos: s.combos.map((c) => (c.id === tempId ? comboFromRow(data as ComboRow) : c)),
+          }));
+        }
+      });
+  }
+
+  function updateCombo(id: string, patch: Partial<Omit<MealCombo, "id" | "sortOrder">>) {
+    setState((s) => ({
+      ...s,
+      combos: s.combos.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    }));
+    if (!supabase || !user) return;
+    const row: Record<string, unknown> = {};
+    if (patch.name !== undefined) row.name = patch.name;
+    if (patch.icon !== undefined) row.icon = patch.icon;
+    if (patch.items !== undefined) row.items = patch.items;
+    supabase
+      .from("meal_combos")
+      .update(row)
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .then(({ error }) => {
+        if (error) console.error("updateCombo failed", error.message);
+      });
+  }
+
+  function duplicateCombo(id: string) {
+    const source = stateRef.current.combos.find((c) => c.id === id);
+    if (!source) return;
+    addCombo({
+      name: `${source.name} copy`,
+      icon: source.icon,
+      items: source.items.map((i) => ({ ...i })),
+    });
+  }
+
+  function deleteCombo(id: string) {
+    setState((s) => ({ ...s, combos: s.combos.filter((c) => c.id !== id) }));
+    if (!supabase || !user) return;
+    supabase
+      .from("meal_combos")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .then(({ error }) => {
+        if (error) console.error("deleteCombo failed", error.message);
+      });
+  }
+
+  function logCombo(id: string) {
+    const combo = stateRef.current.combos.find((c) => c.id === id);
+    if (!combo) return { loggedNames: [], skippedNames: [] };
+    const todayDow = new Date().getDay(); // 0 = Sunday ... 6 = Saturday, matches FoodTemplate.activeDays
+    const loggedNames: string[] = [];
+    const skippedNames: string[] = [];
+    for (const item of combo.items) {
+      const food = stateRef.current.foods.find((f) => f.id === item.foodId);
+      if (!food) continue; // food was deleted since the combo was saved — skip it silently
+      if (!food.activeDays.includes(todayDow)) {
+        // Not scheduled for today — skip rather than adding calories that
+        // won't show up anywhere in "Today's Foods" (see known issue).
+        skippedNames.push(food.name);
+        continue;
+      }
+      addQuantity(item.foodId, item.quantity);
+      loggedNames.push(food.name);
+    }
+    return { loggedNames, skippedNames };
+  }
+
+  // ── Milestones (Phase 3) ────────────────────────────────────────────
+  // Once a milestone is recorded it's permanent — this just marks that a
+  // celebration has been shown, so we never re-celebrate the same one.
+
+  function recordMilestone(key: MilestoneKey) {
+    if (stateRef.current.milestones.some((m) => m.key === key)) return;
+    const achievedAt = todayISO();
+    setState((s) => ({ ...s, milestones: [...s.milestones, { key, achievedAt }] }));
+    if (!supabase || !user) return;
+    supabase
+      .from("milestones")
+      .upsert(
+        { user_id: user.id, key, achieved_at: achievedAt },
+        { onConflict: "user_id,key", ignoreDuplicates: true }
+      )
+      .then(({ error }) => {
+        if (error) console.error("recordMilestone failed", error.message);
+      });
+  }
+
   const value: StoreContextValue = useMemo(
     () => ({
       ...state,
@@ -508,6 +683,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       toggleBinary,
       addWaterMl,
       addWeightEntry,
+      addCombo,
+      updateCombo,
+      duplicateCombo,
+      deleteCombo,
+      logCombo,
+      recordMilestone,
       ready,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

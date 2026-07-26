@@ -25,19 +25,26 @@
 /* ── Princess mode: soft pink, sparkly, super cute ────────────────────── */
 .princess {
   --bg: #fff3fa;
-  --bg-elevated: #ffffff;
-  --text: #c00855de;
-  --text-muted: #d635b1d3;
+  --bg-elevated: #fcefefa1;
+  --text: #6d0048;
+  --text-muted: #9c1379;
   --border: #ffd6ec;
   --nebula-1: rgba(244, 66, 158, 0.12);
   --nebula-2: rgba(187, 102, 251, 0.10);
   --ring-grad-start: #ff6fb8;
   --ring-grad-end: #fa0068fa;
-  --ring-glow: rgba(244, 66, 158, 0.5);
+  --ring-glow: rgba(255, 47, 154, 0.5);
 }
 
 html {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Real background for the bottom nav — bg-[var(--bg-elevated)]/90 in
+   BottomNav.tsx doesn't compile (Tailwind can't apply an opacity modifier
+   to a hex-string CSS var), so the nav had no background at all. */
+nav[aria-label="Primary"] {
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
 }
 
 body {

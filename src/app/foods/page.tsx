@@ -8,7 +8,8 @@ import { Sheet } from "@/components/ui/sheet";
 import { FoodEditorSheet } from "@/components/FoodEditorSheet";
 import { FoodTemplate, FoodCategory } from "@/lib/types";
 import { CATEGORY_ICON_KEYS, FoodIcon, getCategoryStyle } from "@/lib/icons";
-import { Plus, Archive, ArchiveRestore, Trash2, Sprout } from "lucide-react";
+import { Plus, Archive, ArchiveRestore, Trash2, Dumbbell, UtensilsCrossed } from "lucide-react";
+import Link from "next/link";
 
 const DAY_ABBR = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -115,9 +116,17 @@ export default function FoodsPage() {
           <p className="text-sm text-[var(--text-muted)]">Your ingredients</p>
           <h1 className="font-display text-2xl font-semibold">Foods</h1>
         </div>
-        <Button size="icon" onClick={() => setEditing("new")} aria-label="Add food">
-          <Plus className="w-5 h-5" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/combos"
+            className="h-11 px-3.5 flex items-center gap-1.5 rounded-xl border border-[var(--border)] text-sm font-medium text-[var(--text)] hover:bg-nova-500/10"
+          >
+            <UtensilsCrossed className="w-4 h-4" /> Combos
+          </Link>
+          <Button size="icon" onClick={() => setEditing("new")} aria-label="Add food">
+            <Plus className="w-5 h-5" />
+          </Button>
+        </div>
       </header>
 
       <div className="space-y-6">
@@ -171,8 +180,8 @@ export default function FoodsPage() {
 
         {active.length === 0 && (
           <Card className="p-8 text-center">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/12 dark:bg-emerald-400/15 mb-3">
-              <Sprout className="w-6 h-6 text-emerald-600 dark:text-emerald-300" fill="currentColor" fillOpacity={0.22} strokeWidth={1.75} />
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-nova-500/12 dark:bg-nova-400/15 mb-3">
+              <Dumbbell className="w-6 h-6 text-nova-600 dark:text-nova-300" fill="currentColor" fillOpacity={0.22} strokeWidth={1.75} />
             </span>
             <p className="text-sm text-[var(--text-muted)]">
               Add the ingredients you eat regularly to build your daily checklist.

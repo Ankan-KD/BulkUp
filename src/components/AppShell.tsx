@@ -11,9 +11,12 @@ import { Loader2 } from "lucide-react";
 function Splash() {
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center gap-3">
-      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-nova-500 to-aurora-500 shadow-glow-nova text-2xl animate-pulse-glow">
-        🌱
-      </span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/App_logo.svg"
+        alt="BodyBuddy"
+        className="h-14 w-14 rounded-2xl shadow-glow-nova animate-pulse-glow"
+      />
       <Loader2 className="w-5 h-5 text-nova-400 animate-spin" />
     </div>
   );

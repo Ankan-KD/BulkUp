@@ -8,11 +8,14 @@ import { computeTotals, completionPercent, foodProgress } from "@/lib/nutrition"
 import { formatDateLabel } from "@/lib/utils";
 import { DayRecord } from "@/lib/types";
 import { AppIcon } from "@/lib/icons";
+import { WeeklySummary } from "@/components/WeeklySummary";
+import { StreaksAchievements } from "@/components/StreaksAchievements";
 import { Flame, Scale as ScaleIcon } from "lucide-react";
 
 export default function HistoryPage() {
   const { foods, history, today } = useStore();
   const [selected, setSelected] = useState<DayRecord | null>(null);
+  const [view, setView] = useState<"daily" | "weekly" | "progress">("daily");
 
   const days = useMemo(
     () => [...history, today].filter((d) => d.logs.length > 0 || d.weightKg).reverse(),
@@ -26,6 +29,25 @@ export default function HistoryPage() {
         <h1 className="font-display text-2xl font-semibold">History</h1>
       </header>
 
+      <div className="mb-5 grid grid-cols-3 gap-1.5 rounded-xl2 bg-nova-700/6 dark:bg-nova-100/6 p-1">
+        {(["daily", "weekly", "progress"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`py-2 rounded-xl text-sm font-medium capitalize transition-colors ${
+              view === v ? "bg-[var(--bg-elevated)] shadow-soft text-[var(--text)]" : "text-[var(--text-muted)]"
+            }`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+
+      {view === "weekly" ? (
+        <WeeklySummary />
+      ) : view === "progress" ? (
+        <StreaksAchievements />
+      ) : (
       <div className="space-y-2.5">
         {days.map((day) => {
           const pct = completionPercent(foods, day);
@@ -58,6 +80,7 @@ export default function HistoryPage() {
           </Card>
         )}
       </div>
+      )}
 
       <Sheet open={!!selected} onClose={() => setSelected(null)} title={selected ? formatDateLabel(selected.date) : ""}>
         {selected && (

@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { formatDateShort } from "@/lib/utils";
-import { TrendingUp, TrendingDown, Target, Scale } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Target, Scale, Sparkles } from "lucide-react";
+import { weightTrendLabel } from "@/lib/goalCopy";
+import { computeRollingAverage, computeWeeklyRateKg, interpretProgress } from "@/lib/weightTrend";
 
 type Range = "7d" | "30d" | "3m" | "6m";
 const RANGE_DAYS: Record<Range, number> = { "7d": 7, "30d": 30, "3m": 90, "6m": 180 };
@@ -40,6 +42,25 @@ export default function WeightPage() {
       ? Math.round((filtered[filtered.length - 1].weightKg - filtered[0].weightKg) * 10) / 10
       : null;
 
+  // ── Phase 6: 7-day rolling average, weekly rate of change, and a plain
+  // -language read on whether the current plan is working. Computed on the
+  // full history (not the selected chart range) so it stays a stable,
+  // range-independent read of "how am I trending right now".
+  const rollingSeries = useMemo(() => computeRollingAverage(weights, 7), [weights]);
+  const latestAvg = rollingSeries.length ? rollingSeries[rollingSeries.length - 1].avgKg : current;
+  const weeklyRateKg = useMemo(() => computeWeeklyRateKg(weights, 28), [weights]);
+  const progress = useMemo(
+    () => interpretProgress(settings.goalMode, weeklyRateKg, current, settings.goalWeightKg),
+    [settings.goalMode, weeklyRateKg, current, settings.goalWeightKg]
+  );
+  // Same rolling series, cropped to the chart's selected range — the line
+  // we actually draw, since raw daily bars are prone to noisy fluctuation.
+  const rollingFiltered = useMemo(() => {
+    if (filtered.length === 0) return [];
+    const cutoffISO = filtered[0].date;
+    return rollingSeries.filter((p) => p.date >= cutoffISO);
+  }, [rollingSeries, filtered]);
+
   function save() {
     const num = parseFloat(value);
     if (!isNaN(num) && num > 0) {
@@ -61,8 +82,62 @@ export default function WeightPage() {
         <p className="text-xs uppercase tracking-wide text-[var(--text-muted)] mb-1">Current weight</p>
         <p className="font-display text-4xl font-semibold tabular-nums">{current}<span className="text-lg font-body text-[var(--text-muted)]"> kg</span></p>
         <p className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-nova-400">
-          <TrendingUp className="w-4 h-4" /> {gained >= 0 ? "+" : ""}{gained} kg gained since start
+          {(settings.goalMode === "lose" ? gained <= 0 : gained >= 0) ? (
+            <TrendingUp className="w-4 h-4" />
+          ) : (
+            <TrendingDown className="w-4 h-4" />
+          )}{" "}
+          {weightTrendLabel(settings.goalMode, gained)}
         </p>
+      </Card>
+
+      {/* Trend & progress interpretation (Phase 6) — the headline read on
+          whether the current plan is working, prioritized above raw
+          daily-entry stats since that's what actually answers the question. */}
+      <Card className="p-4 mb-4">
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <p className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">7-day average</p>
+            <p className="font-display text-xl font-semibold tabular-nums mt-0.5">
+              {latestAvg}
+              <span className="text-sm font-body font-normal text-[var(--text-muted)]"> kg</span>
+            </p>
+          </div>
+          <div className="w-px h-9 bg-[var(--border)]" />
+          <div className="flex-1">
+            <p className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Weekly rate</p>
+            <p
+              className={cn(
+                "font-display text-xl font-semibold tabular-nums mt-0.5 inline-flex items-center gap-1",
+                weeklyRateKg === null || Math.abs(weeklyRateKg) < 0.1
+                  ? "text-[var(--text)]"
+                  : weeklyRateKg > 0
+                  ? "text-nova-400"
+                  : "text-aurora-400"
+              )}
+            >
+              {weeklyRateKg !== null && Math.abs(weeklyRateKg) >= 0.1 ? (
+                weeklyRateKg > 0 ? (
+                  <TrendingUp className="w-4 h-4" />
+                ) : (
+                  <TrendingDown className="w-4 h-4" />
+                )
+              ) : (
+                <Minus className="w-4 h-4" />
+              )}
+              {weeklyRateKg !== null ? `${weeklyRateKg > 0 ? "+" : ""}${weeklyRateKg}` : "—"}
+              <span className="text-sm font-body font-normal text-[var(--text-muted)]">kg/wk</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 pt-3 border-t border-[var(--border)] flex items-start gap-2">
+          <Sparkles className="w-3.5 h-3.5 text-aurora-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-[13px] leading-snug">{progress.headline}</p>
+            {progress.detail && <p className="text-[12px] text-[var(--text-muted)] mt-0.5">{progress.detail}</p>}
+          </div>
+        </div>
       </Card>
 
       <div className="grid grid-cols-2 gap-2.5 mb-4">
@@ -109,20 +184,54 @@ export default function WeightPage() {
 
         {filtered.length > 1 ? (
           <>
-            <div className="flex items-end gap-1 h-24">
-              {filtered.map((w, i) => {
-                const h = ((w.weightKg - minW) / spread) * 100;
+            <svg viewBox="0 0 300 100" className="w-full h-24" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="weightTrendLine" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#5a32c9" />
+                  <stop offset="100%" stopColor="#2ecfdd" />
+                </linearGradient>
+              </defs>
+              {(() => {
+                const n = rollingFiltered.length || filtered.length;
+                const xFor = (i: number) => (n <= 1 ? 150 : (i / (n - 1)) * 300);
+                const yFor = (v: number) => 92 - ((v - minW) / spread) * 84;
+                const linePoints = rollingFiltered.length ? rollingFiltered : filtered.map((w) => ({ avgKg: w.weightKg }));
+                const path = linePoints
+                  .map((p, i) => `${i === 0 ? "M" : "L"}${xFor(i)},${yFor(p.avgKg)}`)
+                  .join(" ");
                 return (
-                  <div key={i} className="flex-1 flex flex-col items-center justify-end h-full min-w-[2px]">
-                    <div
-                      className="w-full rounded-t-md bg-gradient-to-t from-nova-700 to-aurora-400 shadow-glow-nova"
-                      style={{ height: `${Math.max(6, h)}%` }}
-                      title={`${w.weightKg}kg on ${w.date}`}
+                  <>
+                    {/* raw daily entries — kept subtle on purpose, the average line is the point */}
+                    {filtered.map((w, i) => (
+                      <circle
+                        key={i}
+                        cx={xFor(i)}
+                        cy={yFor(w.weightKg)}
+                        r={1.6}
+                        className="fill-nova-700/25 dark:fill-nova-100/20"
+                      />
+                    ))}
+                    {/* 7-day rolling average — the primary trend visualization */}
+                    <path
+                      d={path}
+                      fill="none"
+                      stroke="url(#weightTrendLine)"
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     />
-                  </div>
+                    {linePoints.length > 0 && (
+                      <circle
+                        cx={xFor(linePoints.length - 1)}
+                        cy={yFor(linePoints[linePoints.length - 1].avgKg)}
+                        r={3}
+                        className="fill-aurora-400"
+                      />
+                    )}
+                  </>
                 );
-              })}
-            </div>
+              })()}
+            </svg>
             <div className="flex justify-between mt-2 text-[10px] text-[var(--text-muted)]">
               <span>{formatDateShort(filtered[0].date)}</span>
               <span>{formatDateShort(filtered[filtered.length - 1].date)}</span>

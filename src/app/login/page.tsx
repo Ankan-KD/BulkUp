@@ -47,11 +47,14 @@ export default function LoginPage() {
     <div className="min-h-dvh flex flex-col justify-center px-6 py-10">
       <div className="mx-auto w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-nova-500 to-aurora-500 shadow-glow-nova text-3xl mb-4">
-            🌱
-          </span>
-          <h1 className="font-display text-2xl font-semibold text-glow-nova">BulkUp</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">Your weight-gain journey, tracked.</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/App_logo.svg"
+            alt="BodyBuddy"
+            className="h-16 w-16 rounded-2xl shadow-glow-nova mb-4"
+          />
+          <h1 className="font-display text-2xl font-semibold text-glow-nova">BodyBuddy</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Your goals, tracked — one day at a time.</p>
         </div>
 
         {!configured && (

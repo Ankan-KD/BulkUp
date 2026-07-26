@@ -1,14 +1,29 @@
 "use client";
 
+import { useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sun, Moon, Monitor, Heart, LogOut, Mail } from "lucide-react";
+import { Sun, Moon, Monitor, Heart, LogOut, Mail, TrendingUp, TrendingDown, Equal, AlertTriangle } from "lucide-react";
+import { GoalMode } from "@/lib/types";
+import { GOAL_SHORT_LABELS, goalWeightWarning, calorieGoalWarning } from "@/lib/goalCopy";
+
+const GOAL_ICONS: Record<GoalMode, typeof TrendingUp> = {
+  gain: TrendingUp,
+  lose: TrendingDown,
+  maintain: Equal,
+};
 
 export default function SettingsPage() {
-  const { settings, updateSettings } = useStore();
+  const { settings, updateSettings, weights } = useStore();
   const { user, signOut } = useAuth();
+  const currentWeight = useMemo(
+    () => (weights.length > 0 ? weights[weights.length - 1].weightKg : settings.startWeightKg),
+    [weights, settings.startWeightKg]
+  );
+  const weightWarning = goalWeightWarning(settings.goalMode, currentWeight, settings.goalWeightKg);
+  const calorieWarning = calorieGoalWarning(currentWeight, settings.goalMode, settings.calorieGoal);
 
   return (
     <div className="px-5 pt-6">
@@ -30,6 +45,33 @@ export default function SettingsPage() {
         </Button>
       </Card>
 
+      <Card className="p-4 mb-4">
+        <p className="text-sm font-medium mb-3">Goal</p>
+        <div className="grid grid-cols-3 gap-2">
+          {(["gain", "lose", "maintain"] as GoalMode[]).map((g) => {
+            const Icon = GOAL_ICONS[g];
+            return (
+              <button
+                key={g}
+                onClick={() => updateSettings({ goalMode: g })}
+                className={`py-2.5 rounded-xl text-sm font-medium border transition-colors flex flex-col items-center justify-center gap-1 ${
+                  settings.goalMode === g ? "bg-nova-700 text-white border-nova-700" : "border-[var(--border)]"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {GOAL_SHORT_LABELS[g]}
+              </button>
+            );
+          })}
+        </div>
+        {weightWarning && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-ember-500/30 bg-ember-500/10 px-3.5 py-3 text-xs text-ember-600">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{weightWarning}</span>
+          </div>
+        )}
+      </Card>
+
       <Card className="p-4 mb-4 space-y-4">
         <NumberRow
           label="Daily calorie goal"
@@ -37,6 +79,12 @@ export default function SettingsPage() {
           suffix="kcal"
           onChange={(v) => updateSettings({ calorieGoal: v })}
         />
+        {calorieWarning && (
+          <div className="flex items-start gap-2 rounded-xl border border-ember-500/30 bg-ember-500/10 px-3.5 py-3 text-xs text-ember-600">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{calorieWarning}</span>
+          </div>
+        )}
         <Divider />
         <NumberRow
           label="Protein goal"

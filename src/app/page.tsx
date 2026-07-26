@@ -1,23 +1,46 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
 import { useStore } from "@/lib/store";
 import { computeTotals, foodProgress } from "@/lib/nutrition";
+import { computeMilestoneStatuses, MilestoneStatus } from "@/lib/milestones";
 import { GrowthRing } from "@/components/GrowthRing";
 import { Card } from "@/components/ui/card";
 import { FoodChecklistItem } from "@/components/FoodChecklistItem";
+import { MilestoneCelebration } from "@/components/MilestoneCelebration";
+import { dashboardHeading, calorieRemainingLabel, progressStatus, progressStatusLabel } from "@/lib/goalCopy";
 import { Flame, Droplets, Beef, Wheat, PieChart, Settings } from "lucide-react";
 
 export default function DashboardPage() {
-  const { settings, foods, today, addWaterMl, ready } = useStore();
+  const { settings, foods, today, history, weights, milestones, addWaterMl, recordMilestone, ready } = useStore();
   const router = useRouter();
+  const [celebrating, setCelebrating] = useState<MilestoneStatus | null>(null);
 
   useEffect(() => {
     if (ready && !settings.onboarded) router.replace("/onboarding");
   }, [ready, settings.onboarded, router]);
+
+  const milestoneStatuses = useMemo(
+    () => computeMilestoneStatuses(foods, history, today, weights, settings),
+    [foods, history, today, weights, settings]
+  );
+
+  // Celebrate one newly-unlocked milestone at a time. We only look for the
+  // next one once the current celebration has been dismissed, so a rapid
+  // string of unlocks doesn't flash past the user unseen.
+  useEffect(() => {
+    if (!ready || celebrating) return;
+    const newlyAchieved = milestoneStatuses.find(
+      (m) => m.achieved && !milestones.some((rec) => rec.key === m.key)
+    );
+    if (newlyAchieved) {
+      recordMilestone(newlyAchieved.key);
+      setCelebrating(newlyAchieved);
+    }
+  }, [ready, celebrating, milestoneStatuses, milestones, recordMilestone]);
 
   const totals = useMemo(() => computeTotals(foods, today), [foods, today]);
   const activeFoods = useMemo(() => {
@@ -30,6 +53,8 @@ export default function DashboardPage() {
   const calorieProgress = settings.calorieGoal > 0 ? totals.calories / settings.calorieGoal : 0;
   const remaining = Math.max(0, settings.calorieGoal - totals.calories);
   const waterProgress = settings.waterGoalMl > 0 ? Math.min(1, today.waterMl / settings.waterGoalMl) : 0;
+  const status = progressStatus(settings.goalMode, totals.calories, settings.calorieGoal);
+  const statusLabel = progressStatusLabel(status);
 
   if (!ready || !settings.onboarded) return null;
 
@@ -40,12 +65,11 @@ export default function DashboardPage() {
       <header className="mb-5 flex items-center justify-between">
         <div>
           <p className="text-sm text-[var(--text-muted)]">{greeting}</p>
-          <h1 className="font-display text-2xl font-semibold">Today&apos;s growth</h1>
+          <h1 className="font-display text-2xl font-semibold">{dashboardHeading(settings.goalMode)}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-2xl" role="img" aria-label="sprout">
-            🌱
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/App_logo.svg" alt="BodyBuddy" className="h-8 w-8 rounded-xl" />
           <Link
             href="/settings"
             aria-label="Settings"
@@ -60,13 +84,24 @@ export default function DashboardPage() {
       <Card className="flex flex-col items-center py-8 px-4 mb-6 relative overflow-hidden">
         <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-aurora-200/30 dark:bg-aurora-900/10 blur-2xl" />
         <div className="absolute -bottom-10 -left-10 w-32 h-32 rounded-full bg-nova-200/40 dark:bg-nova-900/20 blur-2xl" />
-        <GrowthRing progress={calorieProgress}>
+        <GrowthRing progress={calorieProgress} status={status}>
           <p className="font-display text-2xl font-semibold tabular-nums">
             {totals.calories}
             <span className="text-base font-body font-normal text-[var(--text-muted)]"> / {settings.calorieGoal}</span>
           </p>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">kcal today</p>
         </GrowthRing>
+        {statusLabel && (
+          <span
+            className={`mt-3 text-[11px] font-semibold px-2.5 py-1 rounded-full ${
+              status === "success"
+                ? "bg-aurora-500/15 text-aurora-600"
+                : "bg-ember-500/15 text-ember-600"
+            }`}
+          >
+            {statusLabel}
+          </span>
+        )}
         <div className="mt-5 flex items-center gap-6 text-sm">
           <div className="text-center">
             <p className="font-semibold font-display text-lg">{Math.round(calorieProgress * 100)}%</p>
@@ -75,7 +110,7 @@ export default function DashboardPage() {
           <div className="w-px h-8 bg-[var(--border)]" />
           <div className="text-center">
             <p className="font-semibold font-display text-lg">{remaining}</p>
-            <p className="text-[var(--text-muted)] text-xs">kcal left</p>
+            <p className="text-[var(--text-muted)] text-xs">{calorieRemainingLabel(settings.goalMode)}</p>
           </div>
         </div>
       </Card>
@@ -135,6 +170,8 @@ export default function DashboardPage() {
           />
         </div>
       </section>
+
+      <MilestoneCelebration milestone={celebrating} onClose={() => setCelebrating(null)} />
     </div>
   );
 }

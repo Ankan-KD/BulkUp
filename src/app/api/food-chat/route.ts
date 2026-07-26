@@ -1,5 +1,5 @@
 import { parseFoodEntry } from "@/lib/parseFood";
-import { FoodTemplate } from "@/lib/types";
+import { FoodTemplate, GoalMode } from "@/lib/types";
 import { FOOD_ICON_OPTIONS } from "@/lib/iconKeys";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -8,6 +8,17 @@ const ICON_KEYS = FOOD_ICON_OPTIONS.map((o) => o.key);
 interface ChatMessage {
   role: "user" | "assistant";
   text: string;
+}
+
+// Today's nutrition context (Phase 4) — lets the model's "reply" text act
+// like a coach instead of a plain logging confirmation. Optional so the
+// route still works if a caller doesn't send it.
+interface CoachContext {
+  goalMode: GoalMode;
+  calorieGoal: number;
+  proteinGoal: number;
+  caloriesSoFar: number;
+  proteinSoFar: number;
 }
 
 interface ChatAction {
@@ -72,7 +83,7 @@ const RESPONSE_SCHEMA = {
   required: ["reply", "done", "actions"],
 };
 
-function buildSystemPrompt(foods: FoodTemplate[]) {
+function buildSystemPrompt(foods: FoodTemplate[], coach?: CoachContext) {
   const active = foods.filter((f) => !f.archived);
   const foodList = active.length
     ? active
@@ -87,7 +98,7 @@ function buildSystemPrompt(foods: FoodTemplate[]) {
         .join("\n")
     : "(none yet — every ingredient will need to be created)";
 
-  return `You are Bulku, an intelligent AI nutrition decomposition assistant inside a weight-gain tracker app.
+  return `You are Buddy, an intelligent AI nutrition decomposition assistant inside BodyBuddy, a goal-based nutrition tracking app that helps users gain, lose, or maintain weight.
 
 Your job is not to create dishes. Your job is to understand what the user ate and convert meals into individual nutritional components (ingredients) that can be tracked separately.
 
@@ -154,13 +165,38 @@ For each action:
 
 Be decisive and reasonably accurate with estimates for common ingredients (you know roughly what rice, chicken, dal, roti, paneer, idli, oil, etc. contain per typical serving). Round to sensible whole numbers.
 
-Respond with ONLY valid JSON matching the given schema — no markdown, no explanations, no bullet points outside the JSON. The "reply" field should be short and friendly (max 2 sentences). The "actions" array should contain one action per ingredient detected — a single dish mention like "chicken biryani" should produce MULTIPLE actions (rice, chicken, oil), not one.
+Respond with ONLY valid JSON matching the given schema — no markdown, no explanations, no bullet points outside the JSON. The "actions" array should contain one action per ingredient detected — a single dish mention like "chicken biryani" should produce MULTIPLE actions (rice, chicken, oil), not one.
 
+9. COACHING TONE FOR "reply": once you're confident in the ingredient breakdown (done: true, actions populated), don't just confirm what was logged — say that briefly, then act like a lightweight nutrition coach for one more short sentence, using the remaining-calories/remaining-protein numbers below when they're provided. Keep the whole reply to max 2 short sentences total, plain and practical, never preachy or generic ("great job!", "keep it up!" alone don't count). Prefer concrete next actions over praise. Examples of the coaching half of a reply: "You've still got about 30g protein left today — Greek yogurt would fit nicely." / "That puts you close to today's calorie target." / "That's a good chunk of your remaining budget — maybe keep the rest of today lighter." Only give the coaching sentence when you have actions to log; while still asking a clarifying question (done: false), keep the reply focused on that question with no coaching add-on.
+${coach ? buildCoachGuidance(coach) : ""}
 The user's existing foods:
 ${foodList}`;
 }
 
-async function callGemini(messages: ChatMessage[], foods: FoodTemplate[]): Promise<ChatResult | null> {
+/** Goal-aware coaching context + phrasing rules, appended to the system prompt when the caller supplies today's numbers (Phase 4). */
+function buildCoachGuidance(coach: CoachContext): string {
+  const remainingCalories = Math.round(coach.calorieGoal - coach.caloriesSoFar);
+  const remainingProtein = Math.round(coach.proteinGoal - coach.proteinSoFar);
+  const goalLine =
+    coach.goalMode === "gain"
+      ? "The user's goal is to GAIN weight via a calorie surplus. If today's logged calories are still under the target, encourage practical ways to close the gap (calorie-dense foods, an extra serving) rather than just noting the number. Filling or exceeding the target today is healthy progress, not a problem."
+      : coach.goalMode === "lose"
+      ? "The user's goal is to LOSE weight via a calorie deficit/budget. If this entry pushes them close to or over their remaining calorie budget, gently flag it and suggest a lighter option for later — don't be alarmist, one sentence is enough. Favor recommending filling, high-protein choices when there's still room."
+      : "The user's goal is to MAINTAIN their current weight. Favor consistency over hitting an exact number — mention if they're comfortably on track or drifting notably high/low, without being strict about small variance.";
+
+  return `
+Today's numbers, for the coaching half of your reply only (do not restate raw JSON, just use these naturally in the sentence):
+- Calorie goal: ${coach.calorieGoal} kcal, logged so far (before this message): ${coach.caloriesSoFar} kcal, remaining: ${remainingCalories} kcal
+- Protein goal: ${coach.proteinGoal} g, logged so far (before this message): ${coach.proteinSoFar} g, remaining: ${remainingProtein} g
+${goalLine}
+`;
+}
+
+async function callGemini(
+  messages: ChatMessage[],
+  foods: FoodTemplate[],
+  coach?: CoachContext
+): Promise<ChatResult | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
@@ -174,7 +210,7 @@ async function callGemini(messages: ChatMessage[], foods: FoodTemplate[]): Promi
 
   const body = {
     contents,
-    systemInstruction: { parts: [{ text: buildSystemPrompt(foods) }] },
+    systemInstruction: { parts: [{ text: buildSystemPrompt(foods, coach) }] },
     generationConfig: {
       temperature: 0.4,
       responseMimeType: "application/json",
@@ -207,7 +243,7 @@ async function callGemini(messages: ChatMessage[], foods: FoodTemplate[]): Promi
 // Used only when no GEMINI_API_KEY is configured — a single-shot heuristic
 // match against the user's existing foods, no conversation, no ingredient
 // decomposition, no creation of new foods (that genuinely needs an LLM).
-function localFallback(messages: ChatMessage[], foods: FoodTemplate[]): ChatResult {
+function localFallback(messages: ChatMessage[], foods: FoodTemplate[], coach?: CoachContext): ChatResult {
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.text ?? "";
   const matches = parseFoodEntry(lastUser, foods);
 
@@ -220,8 +256,20 @@ function localFallback(messages: ChatMessage[], foods: FoodTemplate[]): ChatResu
     };
   }
 
+  // Simple remaining-calories nudge even without an LLM — keeps the
+  // "coach" feel consistent whether or not Gemini is configured.
+  let nudge = "";
+  if (coach && coach.calorieGoal > 0) {
+    const remaining = Math.round(coach.calorieGoal - coach.caloriesSoFar);
+    if (coach.goalMode === "lose" && remaining < 0) {
+      nudge = ` You're now over today's calorie budget — a lighter next meal would help.`;
+    } else if (remaining > 0) {
+      nudge = ` About ${remaining} kcal left today.`;
+    }
+  }
+
   return {
-    reply: `Logged ${matches.length} item${matches.length > 1 ? "s" : ""} based on your Foods list. Add a free Gemini API key (GEMINI_API_KEY) to break dishes into ingredients and estimate new ones automatically.`,
+    reply: `Logged ${matches.length} item${matches.length > 1 ? "s" : ""} based on your Foods list.${nudge} Add a free Gemini API key (GEMINI_API_KEY) to break dishes into ingredients and estimate new ones automatically.`,
     done: true,
     actions: matches.map((m) => ({
       type: "log_existing" as const,
@@ -233,14 +281,18 @@ function localFallback(messages: ChatMessage[], foods: FoodTemplate[]): ChatResu
 }
 
 export async function POST(req: NextRequest) {
-  const { messages, foods } = (await req.json()) as { messages: ChatMessage[]; foods: FoodTemplate[] };
+  const { messages, foods, coach } = (await req.json()) as {
+    messages: ChatMessage[];
+    foods: FoodTemplate[];
+    coach?: CoachContext;
+  };
 
   if (!messages || messages.length === 0) {
     return NextResponse.json({ reply: "What did you eat?", done: false, actions: [] });
   }
 
-  const gemini = await callGemini(messages, foods);
+  const gemini = await callGemini(messages, foods, coach);
   if (gemini) return NextResponse.json(gemini);
 
-  return NextResponse.json(localFallback(messages, foods));
+  return NextResponse.json(localFallback(messages, foods, coach));
 }

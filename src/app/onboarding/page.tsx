@@ -1,14 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Sprout } from "@/components/Sprout";
-import { FoodTemplate } from "@/lib/types";
+import { BulkUp } from "@/components/BulkUp";
+import { FoodTemplate, GoalMode } from "@/lib/types";
+import { GOAL_DESCRIPTIONS, GOAL_LABELS, onboardingCta, suggestedCalorieGoal, goalWeightWarning, calorieGoalWarning } from "@/lib/goalCopy";
 import { AppIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
+import { TrendingUp, TrendingDown, Equal, AlertTriangle } from "lucide-react";
+
+const GOAL_ICONS: Record<GoalMode, typeof TrendingUp> = {
+  gain: TrendingUp,
+  lose: TrendingDown,
+  maintain: Equal,
+};
 
 const SUGGESTIONS: Array<Omit<FoodTemplate, "id" | "sortOrder" | "archived" | "activeDays" | "category" | "customCategory" | "baseIngredient">> = [
   { name: "Eggs", emoji: "Egg", targetQuantity: 4, unit: "count", calories: 70, protein: 6, carbs: 0.5, fats: 5, aliases: ["egg"], kind: "quantity" },
@@ -48,14 +56,22 @@ export default function OnboardingPage() {
   const { user } = useAuth();
   const { updateSettings, addFood, addWeightEntry, foods, settings } = useStore();
   const [step, setStep] = useState(0);
+  const [goal, setGoal] = useState<GoalMode>(settings.goalMode || "gain");
   const [name, setName] = useState(settings.name || (user?.user_metadata?.name as string) || "");
   const [currentWeight, setCurrentWeight] = useState(70);
-  const [calorieGoal, setCalorieGoal] = useState(3500);
+  const [calorieGoal, setCalorieGoal] = useState(() => suggestedCalorieGoal(70, settings.goalMode || "gain"));
+  const [calorieGoalTouched, setCalorieGoalTouched] = useState(false);
   const [goalWeight, setGoalWeight] = useState(80);
   const [proteinGoal, setProteinGoal] = useState(180);
   const [chosen, setChosen] = useState<string[]>(["Eggs", "Milk", "Chicken", "Protein Shake"]);
   const [targets, setTargets] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
+
+  // Keep the suggested calorie target in step with weight/goal changes until
+  // the user manually adjusts it themselves.
+  useEffect(() => {
+    if (!calorieGoalTouched) setCalorieGoal(suggestedCalorieGoal(currentWeight, goal));
+  }, [currentWeight, goal, calorieGoalTouched]);
 
   function toggleFood(n: string) {
     setChosen((c) => (c.includes(n) ? c.filter((x) => x !== n) : [...c, n]));
@@ -65,6 +81,7 @@ export default function OnboardingPage() {
     setSaving(true);
     updateSettings({
       name,
+      goalMode: goal,
       calorieGoal,
       goalWeightKg: goalWeight,
       startWeightKg: currentWeight,
@@ -88,7 +105,9 @@ export default function OnboardingPage() {
     router.replace("/");
   }
 
-  const progress = ((step + 1) / 4) * 100;
+  const progress = ((step + 1) / 5) * 100;
+  const weightWarning = goalWeightWarning(goal, currentWeight, goalWeight);
+  const calorieWarning = calorieGoalWarning(currentWeight, goal, calorieGoal);
 
   return (
     <div className="min-h-dvh flex flex-col px-6 pt-10 pb-8">
@@ -101,7 +120,51 @@ export default function OnboardingPage() {
 
       {step === 0 && (
         <div className="flex-1 flex flex-col animate-grow-in">
-          <Sprout progress={0.15} className="w-16 h-16 mb-4" />
+          <BulkUp progress={0.15} className="w-16 h-16 mb-4" />
+          <h1 className="font-display text-3xl font-semibold mb-1">What&apos;s your goal?</h1>
+          <p className="text-[var(--text-muted)] text-sm mb-8">This shapes your targets and daily checklist — you can change it anytime in Settings.</p>
+
+          <div className="space-y-2.5">
+            {(["gain", "lose", "maintain"] as GoalMode[]).map((g) => {
+              const Icon = GOAL_ICONS[g];
+              return (
+                <button
+                  key={g}
+                  onClick={() => setGoal(g)}
+                  className={cn(
+                    "w-full flex items-center gap-3 rounded-xl2 border px-4 py-3.5 text-left transition-all",
+                    goal === g
+                      ? "bg-nova-600 border-nova-500 text-white shadow-glow-nova"
+                      : "border-[var(--border)] bg-[var(--bg-elevated)]"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+                      goal === g ? "bg-white/15" : "bg-nova-700/12"
+                    )}
+                  >
+                    <Icon className="w-5 h-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{GOAL_LABELS[g]}</span>
+                    <span className={cn("block text-xs", goal === g ? "text-white/80" : "text-[var(--text-muted)]")}>
+                      {GOAL_DESCRIPTIONS[g]}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <Button size="lg" className="w-full mt-auto pt-8" onClick={() => setStep(1)}>
+            Continue
+          </Button>
+        </div>
+      )}
+
+      {step === 1 && (
+        <div className="flex-1 flex flex-col animate-grow-in">
           <h1 className="font-display text-3xl font-semibold mb-1">Let&apos;s set your goals</h1>
           <p className="text-[var(--text-muted)] text-sm mb-8">A few numbers, then we get out of your way.</p>
 
@@ -117,22 +180,12 @@ export default function OnboardingPage() {
             </div>
             <GoalStepper label="Current weight" value={currentWeight} step={0.5} suffix="kg" onChange={setCurrentWeight} />
             <GoalStepper label="Goal weight" value={goalWeight} step={1} suffix="kg" onChange={setGoalWeight} />
-          </div>
-
-          <Button size="lg" className="w-full mt-auto pt-8" onClick={() => setStep(1)}>
-            Continue
-          </Button>
-        </div>
-      )}
-
-      {step === 1 && (
-        <div className="flex-1 flex flex-col animate-grow-in">
-          <h1 className="font-display text-3xl font-semibold mb-1">Daily targets</h1>
-          <p className="text-[var(--text-muted)] text-sm mb-8">Calories and protein — you can tune these anytime.</p>
-
-          <div className="space-y-6">
-            <GoalStepper label="Daily calorie goal" value={calorieGoal} step={100} suffix="kcal" onChange={setCalorieGoal} />
-            <GoalStepper label="Protein goal" value={proteinGoal} step={10} suffix="g" onChange={setProteinGoal} />
+            {weightWarning && (
+              <div className="flex items-start gap-2 rounded-xl border border-ember-500/30 bg-ember-500/10 px-3.5 py-3 text-xs text-ember-600">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{weightWarning}</span>
+              </div>
+            )}
           </div>
 
           <div className="mt-auto pt-8 flex gap-3">
@@ -147,6 +200,42 @@ export default function OnboardingPage() {
       )}
 
       {step === 2 && (
+        <div className="flex-1 flex flex-col animate-grow-in">
+          <h1 className="font-display text-3xl font-semibold mb-1">Daily targets</h1>
+          <p className="text-[var(--text-muted)] text-sm mb-8">Calories and protein — you can tune these anytime.</p>
+
+          <div className="space-y-6">
+            <GoalStepper
+              label="Daily calorie goal"
+              value={calorieGoal}
+              step={100}
+              suffix="kcal"
+              onChange={(v) => {
+                setCalorieGoal(v);
+                setCalorieGoalTouched(true);
+              }}
+            />
+            <GoalStepper label="Protein goal" value={proteinGoal} step={10} suffix="g" onChange={setProteinGoal} />
+            {calorieWarning && (
+              <div className="flex items-start gap-2 rounded-xl border border-ember-500/30 bg-ember-500/10 px-3.5 py-3 text-xs text-ember-600">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{calorieWarning}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-auto pt-8 flex gap-3">
+            <Button variant="outline" size="lg" className="flex-1" onClick={() => setStep(1)}>
+              Back
+            </Button>
+            <Button size="lg" className="flex-1" onClick={() => setStep(3)}>
+              Continue
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
         <div className="flex-1 flex flex-col animate-grow-in">
           <h1 className="font-display text-3xl font-semibold mb-1">What foods do you regularly eat?</h1>
           <p className="text-[var(--text-muted)] text-sm mb-6">Pick a few to start — you can add more anytime.</p>
@@ -170,17 +259,17 @@ export default function OnboardingPage() {
           </div>
 
           <div className="mt-auto pt-8 flex gap-3">
-            <Button variant="outline" size="lg" className="flex-1" onClick={() => setStep(1)}>
+            <Button variant="outline" size="lg" className="flex-1" onClick={() => setStep(2)}>
               Back
             </Button>
-            <Button size="lg" className="flex-1" onClick={() => setStep(3)} disabled={chosen.length === 0}>
+            <Button size="lg" className="flex-1" onClick={() => setStep(4)} disabled={chosen.length === 0}>
               Continue
             </Button>
           </div>
         </div>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <div className="flex-1 flex flex-col animate-grow-in">
           <h1 className="font-display text-3xl font-semibold mb-1">Set your daily targets</h1>
           <p className="text-[var(--text-muted)] text-sm mb-6">How much of each, per day?</p>
@@ -223,11 +312,11 @@ export default function OnboardingPage() {
           </div>
 
           <div className="mt-auto pt-8 flex gap-3">
-            <Button variant="outline" size="lg" className="flex-1" onClick={() => setStep(2)}>
+            <Button variant="outline" size="lg" className="flex-1" onClick={() => setStep(3)}>
               Back
             </Button>
             <Button size="lg" className="flex-1" onClick={finish} disabled={saving}>
-              {saving ? "Starting…" : "Start growing 🌱"}
+              {saving ? "Starting…" : onboardingCta(goal)}
             </Button>
           </div>
         </div>
