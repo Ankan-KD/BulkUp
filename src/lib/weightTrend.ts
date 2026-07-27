@@ -1,5 +1,5 @@
 import { GoalMode, WeightEntry } from "./types";
-import { round1 } from "./utils";
+import { addDaysISO, round1 } from "./utils";
 
 /**
  * Weight trend math (Phase 6). Kept separate from goalCopy.ts because this
@@ -14,13 +14,8 @@ export interface RollingPoint {
 }
 
 function dateToDayNumber(iso: string): number {
-  return Math.floor(new Date(iso + "T00:00:00").getTime() / 86400000);
-}
-
-function addDaysISO(iso: string, delta: number): string {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + delta);
-  return d.toISOString().slice(0, 10);
+  const [y, m, d] = iso.split("-").map(Number);
+  return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
 }
 
 /**

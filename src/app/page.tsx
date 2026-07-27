@@ -11,7 +11,9 @@ import { GrowthRing } from "@/components/GrowthRing";
 import { Card } from "@/components/ui/card";
 import { FoodChecklistItem } from "@/components/FoodChecklistItem";
 import { MilestoneCelebration } from "@/components/MilestoneCelebration";
+import { AppIcon } from "@/components/AppIcon";
 import { dashboardHeading, calorieRemainingLabel, progressStatus, progressStatusLabel } from "@/lib/goalCopy";
+import { dayOfWeekFromISO } from "@/lib/utils";
 import { Flame, Droplets, Beef, Wheat, PieChart, Settings } from "lucide-react";
 
 export default function DashboardPage() {
@@ -44,11 +46,11 @@ export default function DashboardPage() {
 
   const totals = useMemo(() => computeTotals(foods, today), [foods, today]);
   const activeFoods = useMemo(() => {
-    const todayDow = new Date().getDay(); // 0 = Sunday ... 6 = Saturday
+    const todayDow = dayOfWeekFromISO(today.date); // 0 = Sunday ... 6 = Saturday
     return foods
       .filter((f) => !f.archived && f.activeDays.includes(todayDow))
       .sort((a, b) => a.sortOrder - b.sortOrder);
-  }, [foods]);
+  }, [foods, today]);
 
   const calorieProgress = settings.calorieGoal > 0 ? totals.calories / settings.calorieGoal : 0;
   const remaining = Math.max(0, settings.calorieGoal - totals.calories);
@@ -68,8 +70,7 @@ export default function DashboardPage() {
           <h1 className="font-display text-2xl font-semibold">{dashboardHeading(settings.goalMode)}</h1>
         </div>
         <div className="flex items-center gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/App_logo.svg" alt="BodyBuddy" className="h-8 w-8 rounded-xl" />
+          <AppIcon className="h-8 w-8 rounded-xl" />
           <Link
             href="/settings"
             aria-label="Settings"

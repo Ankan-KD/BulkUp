@@ -7,16 +7,12 @@ import { QuickLogSheet } from "./QuickLogSheet";
 import { StoreProvider } from "@/lib/store";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Loader2 } from "lucide-react";
+import { AppIcon } from "./AppIcon";
 
 function Splash() {
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center gap-3">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/App_logo.svg"
-        alt="BodyBuddy"
-        className="h-14 w-14 rounded-2xl shadow-glow-nova animate-pulse-glow"
-      />
+      <AppIcon className="h-14 w-14 rounded-2xl shadow-glow-nova animate-pulse-glow" />
       <Loader2 className="w-5 h-5 text-nova-400 animate-spin" />
     </div>
   );

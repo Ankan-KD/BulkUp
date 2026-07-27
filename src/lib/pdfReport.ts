@@ -123,12 +123,13 @@ export interface HealthReportInput {
 export function buildHealthReportPdf({ data, aiBullets }: HealthReportInput): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const generatedOn = new Date().toLocaleString("en-US", {
+    timeZone: "Asia/Kolkata",
     month: "long",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  });
+  }) + " IST";
   const goalLabel = GOAL_LABELS[data.settings.goalMode];
   const periodLabel =
     data.period.startISO === data.period.endISO

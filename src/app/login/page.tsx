@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Mail, Lock, User as UserIcon, Loader2, Sparkles } from "lucide-react";
+import { AppIcon } from "@/components/AppIcon";
 
 export default function LoginPage() {
   const { signInWithEmail, signUpWithEmail, signInWithGoogle, configured } = useAuth();
@@ -47,12 +48,7 @@ export default function LoginPage() {
     <div className="min-h-dvh flex flex-col justify-center px-6 py-10">
       <div className="mx-auto w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/App_logo.svg"
-            alt="BodyBuddy"
-            className="h-16 w-16 rounded-2xl shadow-glow-nova mb-4"
-          />
+          <AppIcon className="h-16 w-16 rounded-2xl shadow-glow-nova mb-4" />
           <h1 className="font-display text-2xl font-semibold text-glow-nova">BodyBuddy</h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">Your goals, tracked — one day at a time.</p>
         </div>

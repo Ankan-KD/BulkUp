@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { formatDateShort } from "@/lib/utils";
+import { formatDateShort, addDaysISO, todayISO } from "@/lib/utils";
 import { TrendingUp, TrendingDown, Minus, Target, Scale, Sparkles } from "lucide-react";
 import { weightTrendLabel } from "@/lib/goalCopy";
 import { computeRollingAverage, computeWeeklyRateKg, interpretProgress } from "@/lib/weightTrend";
@@ -27,9 +27,7 @@ export default function WeightPage() {
 
   const filtered = useMemo(() => {
     const days = RANGE_DAYS[range];
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    const cutoffISO = cutoff.toISOString().slice(0, 10);
+    const cutoffISO = addDaysISO(todayISO(), -days);
     return weights.filter((w) => w.date >= cutoffISO);
   }, [weights, range]);
 

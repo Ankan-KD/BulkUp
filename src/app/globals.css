@@ -36,6 +36,29 @@
   --ring-glow: rgba(255, 47, 154, 0.5);
 }
 
+/* ── App icon: one SVG per theme, swapped via the theme class on <html> ── */
+.app-icon .app-icon-light {
+  display: block;
+}
+.app-icon .app-icon-dark,
+.app-icon .app-icon-princess {
+  display: none;
+}
+.dark .app-icon .app-icon-dark {
+  display: block;
+}
+.dark .app-icon .app-icon-light,
+.dark .app-icon .app-icon-princess {
+  display: none;
+}
+.princess .app-icon .app-icon-princess {
+  display: block;
+}
+.princess .app-icon .app-icon-light,
+.princess .app-icon .app-icon-dark {
+  display: none;
+}
+
 html {
   -webkit-tap-highlight-color: transparent;
 }

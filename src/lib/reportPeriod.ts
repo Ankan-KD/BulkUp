@@ -1,4 +1,4 @@
-import { formatDateShort, todayISO } from "./utils";
+import { addDaysISO, addMonthsISO, formatDateShort, todayISO } from "./utils";
 
 /**
  * Health & Nutrition Report — period selection.
@@ -32,57 +32,36 @@ export interface ReportPeriod {
   endISO: string; // inclusive
 }
 
-function isoFromDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function todayAsDate(): Date {
-  return new Date(todayISO() + "T00:00:00");
-}
-
 /** Resolves a period key (+ optional custom bounds) into concrete ISO dates. */
 export function resolvePeriod(
   key: ReportPeriodKey,
   customStartISO?: string,
   customEndISO?: string
 ): ReportPeriod {
-  const today = todayAsDate();
+  const today = todayISO(); // IST calendar date, e.g. "2026-07-28"
 
   if (key === "today") {
-    const iso = isoFromDate(today);
-    return { key, label: "Today", startISO: iso, endISO: iso };
+    return { key, label: "Today", startISO: today, endISO: today };
   }
   if (key === "yesterday") {
-    const d = new Date(today);
-    d.setDate(d.getDate() - 1);
-    const iso = isoFromDate(d);
+    const iso = addDaysISO(today, -1);
     return { key, label: "Yesterday", startISO: iso, endISO: iso };
   }
   if (key === "last7") {
-    const start = new Date(today);
-    start.setDate(start.getDate() - 6);
-    return { key, label: "Last 7 Days", startISO: isoFromDate(start), endISO: isoFromDate(today) };
+    return { key, label: "Last 7 Days", startISO: addDaysISO(today, -6), endISO: today };
   }
   if (key === "last30") {
-    const start = new Date(today);
-    start.setDate(start.getDate() - 29);
-    return { key, label: "Last 30 Days", startISO: isoFromDate(start), endISO: isoFromDate(today) };
+    return { key, label: "Last 30 Days", startISO: addDaysISO(today, -29), endISO: today };
   }
   if (key === "last3m") {
-    const start = new Date(today);
-    start.setMonth(start.getMonth() - 3);
-    start.setDate(start.getDate() + 1);
-    return { key, label: "Last 3 Months", startISO: isoFromDate(start), endISO: isoFromDate(today) };
+    return { key, label: "Last 3 Months", startISO: addDaysISO(addMonthsISO(today, -3), 1), endISO: today };
   }
   if (key === "last6m") {
-    const start = new Date(today);
-    start.setMonth(start.getMonth() - 6);
-    start.setDate(start.getDate() + 1);
-    return { key, label: "Last 6 Months", startISO: isoFromDate(start), endISO: isoFromDate(today) };
+    return { key, label: "Last 6 Months", startISO: addDaysISO(addMonthsISO(today, -6), 1), endISO: today };
   }
   // custom
-  const start = customStartISO && customStartISO <= (customEndISO ?? customStartISO) ? customStartISO : customEndISO ?? isoFromDate(today);
-  const end = customEndISO ?? customStartISO ?? isoFromDate(today);
+  const start = customStartISO && customStartISO <= (customEndISO ?? customStartISO) ? customStartISO : customEndISO ?? today;
+  const end = customEndISO ?? customStartISO ?? today;
   const [lo, hi] = start <= end ? [start, end] : [end, start];
   return { key, label: "Custom Range", startISO: lo, endISO: hi };
 }
@@ -90,13 +69,12 @@ export function resolvePeriod(
 /** All ISO dates from start to end inclusive, chronological order. */
 export function datesInRange(startISO: string, endISO: string): string[] {
   const out: string[] = [];
-  const cur = new Date(startISO + "T00:00:00");
-  const end = new Date(endISO + "T00:00:00");
+  let cur = startISO;
   // Safety cap so a malformed range can never hang the browser.
   let guard = 0;
-  while (cur.getTime() <= end.getTime() && guard < 5000) {
-    out.push(isoFromDate(cur));
-    cur.setDate(cur.getDate() + 1);
+  while (cur <= endISO && guard < 5000) {
+    out.push(cur);
+    cur = addDaysISO(cur, 1);
     guard++;
   }
   return out;

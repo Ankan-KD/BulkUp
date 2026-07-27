@@ -1,7 +1,7 @@
 import { DayRecord, FoodTemplate, UserSettings, WeightEntry } from "./types";
 import { computeTotals, completionPercent } from "./nutrition";
 import { weightTrendLabel } from "./goalCopy";
-import { round1 } from "./utils";
+import { addDaysISO, round1, todayISO } from "./utils";
 
 export interface WeeklySummary {
   avgCalories: number;
@@ -16,9 +16,7 @@ export interface WeeklySummary {
 }
 
 function isoDaysAgo(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return addDaysISO(todayISO(), -n);
 }
 
 /** Whether a day's calorie total counts as "on target" for the user's goal mode. */

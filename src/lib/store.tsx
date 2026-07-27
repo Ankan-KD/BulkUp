@@ -13,7 +13,7 @@ import {
   UserSettings,
   WeightEntry,
 } from "./types";
-import { todayISO } from "./utils";
+import { addDaysISO, dayOfWeekFromISO, todayISO } from "./utils";
 
 const DEFAULT_SETTINGS: UserSettings = {
   name: "",
@@ -233,9 +233,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const uid = user.id;
 
     async function load() {
-      const since = new Date();
-      since.setDate(since.getDate() - HISTORY_WINDOW_DAYS);
-      const sinceISO = since.toISOString().slice(0, 10);
+      const sinceISO = addDaysISO(todayISO(), -HISTORY_WINDOW_DAYS);
 
       const [settingsRes, foodsRes, logsRes, waterRes, weightsRes, combosRes, milestonesRes] = await Promise.all([
         supabase!.from("user_settings").select("*").eq("user_id", uid).maybeSingle(),
@@ -643,7 +641,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   function logCombo(id: string) {
     const combo = stateRef.current.combos.find((c) => c.id === id);
     if (!combo) return { loggedNames: [], skippedNames: [] };
-    const todayDow = new Date().getDay(); // 0 = Sunday ... 6 = Saturday, matches FoodTemplate.activeDays
+    const todayDow = dayOfWeekFromISO(stateRef.current.today.date); // 0 = Sunday ... 6 = Saturday, matches FoodTemplate.activeDays
     const loggedNames: string[] = [];
     const skippedNames: string[] = [];
     for (const item of combo.items) {
