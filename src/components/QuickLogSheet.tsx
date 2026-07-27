@@ -1,25 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { Sheet } from "./ui/sheet";
+import { coachQuickPrompts, coachSubheading } from "@/lib/goalCopy";
+import { AppIcon, FoodIcon, getCategoryStyle, resolveFoodIconKey } from "@/lib/icons";
+import { computeTotals } from "@/lib/nutrition";
 import { useStore } from "@/lib/store";
 import { FoodTemplate, GoalMode } from "@/lib/types";
-import { AppIcon, FoodIcon, resolveFoodIconKey, getCategoryStyle } from "@/lib/icons";
-import { computeTotals } from "@/lib/nutrition";
-import { coachSubheading, coachQuickPrompts } from "@/lib/goalCopy";
 import {
-  Sparkles,
-  Send,
-  Mic,
-  MicOff,
-  Loader2,
   CheckCircle2,
-  Zap,
   ChevronRight,
   Compass,
+  Loader2,
+  Mic,
+  MicOff,
   Plus,
+  Send,
+  Sparkles,
+  Zap,
 } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Sheet } from "./ui/sheet";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -195,7 +195,15 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
           if (result.isFinal) {
             sessionFinal = [sessionFinal, chunk.trim()].filter(Boolean).join(" ");
           } else {
-            interim += chunk;
+            // Only keep the LAST interim entry, never sum them. Desktop Chrome
+            // has a single interim entry that gets replaced in place, so this
+            // changes nothing there. Android Chrome instead often emits a new
+            // interim entry per word where each one already contains the full
+            // growing phrase so far ("so" → "so today" → "so today I" → ...);
+            // summing every entry (interim += chunk) re-multiplies that
+            // cumulative text on every word, which is the repeating pattern.
+            // The latest entry alone already reflects everything said so far.
+            interim = chunk;
           }
         }
         sessionFinalRef.current = sessionFinal;
