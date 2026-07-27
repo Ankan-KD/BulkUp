@@ -10,12 +10,14 @@ import { DayRecord } from "@/lib/types";
 import { AppIcon } from "@/lib/icons";
 import { WeeklySummary } from "@/components/WeeklySummary";
 import { StreaksAchievements } from "@/components/StreaksAchievements";
-import { Flame, Scale as ScaleIcon } from "lucide-react";
+import { ReportGeneratorSheet } from "@/components/ReportGeneratorSheet";
+import { Flame, Scale as ScaleIcon, FileText } from "lucide-react";
 
 export default function HistoryPage() {
   const { foods, history, today } = useStore();
   const [selected, setSelected] = useState<DayRecord | null>(null);
   const [view, setView] = useState<"daily" | "weekly" | "progress">("daily");
+  const [reportOpen, setReportOpen] = useState(false);
 
   const days = useMemo(
     () => [...history, today].filter((d) => d.logs.length > 0 || d.weightKg).reverse(),
@@ -24,9 +26,18 @@ export default function HistoryPage() {
 
   return (
     <div className="px-5 pt-6">
-      <header className="mb-5">
-        <p className="text-sm text-[var(--text-muted)]">Consistency over time</p>
-        <h1 className="font-display text-2xl font-semibold">History</h1>
+      <header className="mb-5 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-[var(--text-muted)]">Consistency over time</p>
+          <h1 className="font-display text-2xl font-semibold">History</h1>
+        </div>
+        <button
+          onClick={() => setReportOpen(true)}
+          className="shrink-0 mt-1 inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-xs font-medium shadow-soft hover:bg-nova-700/6 dark:hover:bg-nova-100/6 transition-colors"
+        >
+          <FileText className="w-3.5 h-3.5" />
+          Download Report
+        </button>
       </header>
 
       <div className="mb-5 grid grid-cols-3 gap-1.5 rounded-xl2 bg-nova-700/6 dark:bg-nova-100/6 p-1">
@@ -119,6 +130,8 @@ export default function HistoryPage() {
           </div>
         )}
       </Sheet>
+
+      <ReportGeneratorSheet open={reportOpen} onClose={() => setReportOpen(false)} />
     </div>
   );
 }
