@@ -157,9 +157,11 @@ export default function OnboardingPage() {
             })}
           </div>
 
-          <Button size="lg" className="w-full mt-auto pt-8" onClick={() => setStep(1)}>
-            Continue
-          </Button>
+          <div className="mt-auto pt-8">
+            <Button size="lg" className="w-full" onClick={() => setStep(1)}>
+              Continue
+            </Button>
+          </div>
         </div>
       )}
 

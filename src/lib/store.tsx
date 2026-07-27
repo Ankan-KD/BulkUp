@@ -141,6 +141,18 @@ function comboFromRow(r: ComboRow): MealCombo {
   };
 }
 
+// `Date.now()` alone collides when several optimistic inserts happen in the
+// same millisecond (e.g. onboarding's bulk "add chosen foods" loop), which
+// produced duplicate React keys and, once resolved, duplicate real ids too.
+// Add a random suffix so every temp id is unique regardless of timing.
+function makeTempId(): string {
+  const rand =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+  return `temp-${Date.now()}-${rand}`;
+}
+
 interface MilestoneRow {
   key: string;
   achieved_at: string;
@@ -333,7 +345,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   function addFood(food: Omit<FoodTemplate, "id" | "sortOrder">) {
     if (!supabase || !user) return;
     const sortOrder = stateRef.current.foods.length;
-    const tempId = `temp-${Date.now()}`;
+    const tempId = makeTempId();
     const optimistic: FoodTemplate = { ...food, id: tempId, sortOrder };
     setState((s) => ({ ...s, foods: [...s.foods, optimistic] }));
 
@@ -555,7 +567,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   function addCombo(combo: Omit<MealCombo, "id" | "sortOrder">) {
     if (!supabase || !user) return;
     const sortOrder = stateRef.current.combos.length;
-    const tempId = `temp-${Date.now()}`;
+    const tempId = makeTempId();
     const optimistic: MealCombo = { ...combo, id: tempId, sortOrder };
     setState((s) => ({ ...s, combos: [...s.combos, optimistic] }));
 

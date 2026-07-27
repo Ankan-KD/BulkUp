@@ -123,9 +123,48 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
   const scrollRef = useRef<HTMLDivElement>(null);
   const foodsRef = useRef(foods);
   const baseTextRef = useRef("");        // text that existed before this mic session started
-  const finalTranscriptRef = useRef(""); // finalized speech accumulated during this session
-  const manualStopRef = useRef(false);   // true only when the user explicitly presses mic-off
+  const finalTranscriptRef = useRef(""); // finalized speech accumulated across all recognition restarts
+  const sessionFinalRef = useRef("");    // finalized speech within the CURRENT recognition() run, rebuilt (not appended) on every onresult
+  const manualStopRef = useRef(false);   // true only when the user explicitly presses mic-off (or an auto-stop below acts like one)
+  const listeningRef = useRef(false);    // mirrors `listening` state but readable inside stable effect/listener closures
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   foodsRef.current = foods;
+
+  const SILENCE_STOP_MS = 2500; // stop the mic after this long with no speech activity
+
+  function clearSilenceTimer() {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  }
+
+  // Arms/re-arms the silence watchdog. Called on mic-start and on every
+  // onresult (interim or final) — i.e. any sign the user is actually speaking.
+  function armSilenceTimer() {
+    clearSilenceTimer();
+    silenceTimerRef.current = setTimeout(() => {
+      if (!recognitionRef.current) return;
+      manualStopRef.current = true; // treat like a manual stop so onend won't auto-restart
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // ignore
+      }
+    }, SILENCE_STOP_MS);
+  }
+
+  // Used when the tab/page goes away (tab switch, app backgrounded, screen locked).
+  function stopForInterruption() {
+    if (!listeningRef.current || !recognitionRef.current) return;
+    clearSilenceTimer();
+    manualStopRef.current = true;
+    try {
+      recognitionRef.current.stop();
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     const w = window as any;
@@ -138,19 +177,30 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
       rec.interimResults = true;
   
       rec.onresult = (e: any) => {
+        // Any result event — interim or final — means the user is actively
+        // speaking, so keep the silence watchdog from firing.
+        armSilenceTimer();
+
+        // Rebuild (never append) from index 0 every time. Desktop Chrome reports
+        // only new results via e.resultIndex, but Android Chrome frequently
+        // re-sends already-finalized results too (with resultIndex stuck at 0),
+        // so appending on every event double/triple/quadruple-counts old text.
+        // Recomputing the full session's final text fresh each event is
+        // idempotent on both platforms.
+        let sessionFinal = "";
         let interim = "";
-        for (let i = e.resultIndex; i < e.results.length; i++) {
+        for (let i = 0; i < e.results.length; i++) {
           const result = e.results[i];
           const chunk = result[0]?.transcript ?? "";
           if (result.isFinal) {
-            finalTranscriptRef.current = [finalTranscriptRef.current, chunk.trim()]
-              .filter(Boolean)
-              .join(" ");
+            sessionFinal = [sessionFinal, chunk.trim()].filter(Boolean).join(" ");
           } else {
             interim += chunk;
           }
         }
-        const committed = [baseTextRef.current, finalTranscriptRef.current].filter(Boolean).join(" ");
+        sessionFinalRef.current = sessionFinal;
+        const combinedFinal = [finalTranscriptRef.current, sessionFinalRef.current].filter(Boolean).join(" ");
+        const committed = [baseTextRef.current, combinedFinal].filter(Boolean).join(" ");
         setText(interim ? [committed, interim].filter(Boolean).join(" ") : committed);
       };
   
@@ -159,17 +209,27 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
         // ("no-speech", "aborted") are handled by the onend restart below.
         if (e?.error === "not-allowed" || e?.error === "audio-capture" || e?.error === "service-not-allowed") {
           manualStopRef.current = true;
+          clearSilenceTimer();
+          listeningRef.current = false;
           setListening(false);
         }
       };
   
       rec.onend = () => {
         if (manualStopRef.current) {
+          clearSilenceTimer();
+          listeningRef.current = false;
           setListening(false);
           return;
         }
         // Chrome periodically ends sessions on its own even mid-speech —
-        // restart automatically since the user hasn't pressed mic-off.
+        // fold what was finalized this session into the persistent transcript
+        // (the next session's e.results starts over from empty), then restart
+        // since the user hasn't pressed mic-off.
+        finalTranscriptRef.current = [finalTranscriptRef.current, sessionFinalRef.current]
+          .filter(Boolean)
+          .join(" ");
+        sessionFinalRef.current = "";
         try {
           rec.start();
         } catch {
@@ -179,6 +239,20 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
   
       recognitionRef.current = rec;
     }
+  }, []);
+
+  // Auto-stop the mic if the user switches tabs, backgrounds the app, or
+  // locks the screen — but only if we're actually listening.
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.hidden) stopForInterruption();
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", stopForInterruption);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", stopForInterruption);
+    };
   }, []);
 
   useEffect(() => {
@@ -193,14 +267,19 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
     if (!recognitionRef.current) return;
     if (listening) {
       manualStopRef.current = true;
+      clearSilenceTimer();
+      listeningRef.current = false;
       recognitionRef.current.stop();
       setListening(false);
     } else {
       manualStopRef.current = false;
       baseTextRef.current = text; // keep whatever was already typed/dictated
       finalTranscriptRef.current = "";
+      sessionFinalRef.current = "";
       recognitionRef.current.start();
+      listeningRef.current = true;
       setListening(true);
+      armSilenceTimer(); // in case the user turns the mic on and says nothing at all
     }
   }
 
