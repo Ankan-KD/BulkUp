@@ -24,24 +24,29 @@ function Gate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [logOpen, setLogOpen] = useState(false);
   const isLogin = pathname === "/login";
-  const hideChrome = pathname === "/onboarding" || isLogin;
+  const isPublicMarketing = pathname === "/landing";
+  const isPublic = isLogin || isPublicMarketing;
+  const hideChrome = pathname === "/onboarding" || isPublic;
 
   useEffect(() => {
     if (loading) return;
-    if (!user && !isLogin) router.replace("/login");
-    if (user && isLogin) router.replace("/");
-  }, [loading, user, isLogin, router]);
+    // Signed-out visitors land on the marketing page first, not straight
+    // on the signup form — /login stays directly reachable too (e.g. a
+    // returning user with the link bookmarked).
+    if (!user && !isPublic) router.replace("/landing");
+    if (user && isPublic) router.replace("/");
+  }, [loading, user, isPublic, router]);
 
   if (loading) return <Splash />;
 
   if (!user) {
-    // Only the login page renders while signed out; everything else is a
-    // brief redirect flash handled above.
-    if (!isLogin) return <Splash />;
+    // Only the marketing and login pages render while signed out;
+    // everything else is a brief redirect flash handled above.
+    if (!isPublic) return <Splash />;
     return <>{children}</>;
   }
 
-  if (isLogin) return <Splash />;
+  if (isPublic) return <Splash />;
 
   return (
     <StoreProvider>
