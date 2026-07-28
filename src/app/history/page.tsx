@@ -79,7 +79,7 @@ export default function HistoryPage() {
                     )}
                   </p>
                 </div>
-                <span className="text-sm font-semibold tabular-nums text-nova-700 dark:text-nova-300">{pct}%</span>
+                <span className="text-sm font-semibold tabular-nums text-blue-600 dark:text-blue-400">{pct}%</span>
               </Card>
             </button>
           );
@@ -97,15 +97,15 @@ export default function HistoryPage() {
         {selected && (
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-xl bg-nova-700/6 py-3">
-                <p className="text-lg font-display font-semibold">{completionPercent(foods, selected)}%</p>
+              <div className="rounded-xl bg-blue-500/[0.06] dark:bg-blue-400/[0.08] py-3">
+                <p className="text-lg font-display font-semibold text-blue-600 dark:text-blue-400">{completionPercent(foods, selected)}%</p>
                 <p className="text-[11px] text-[var(--text-muted)]">completed</p>
               </div>
-              <div className="rounded-xl bg-nova-700/6 py-3">
-                <p className="text-lg font-display font-semibold">{computeTotals(foods, selected).calories}</p>
+              <div className="rounded-xl bg-orange-500/[0.06] dark:bg-orange-400/[0.08] py-3">
+                <p className="text-lg font-display font-semibold text-orange-600 dark:text-orange-400">{computeTotals(foods, selected).calories}</p>
                 <p className="text-[11px] text-[var(--text-muted)]">kcal</p>
               </div>
-              <div className="rounded-xl bg-nova-700/6 py-3">
+              <div className="rounded-xl bg-nova-700/6 dark:bg-nova-100/6 py-3">
                 <p className="text-lg font-display font-semibold">{selected.weightKg ?? "—"}</p>
                 <p className="text-[11px] text-[var(--text-muted)]">kg</p>
               </div>
@@ -120,7 +120,7 @@ export default function HistoryPage() {
                     <div key={f.id} className="flex items-center gap-3 py-1.5">
                       <span className="text-lg"><AppIcon name={f.emoji} className="w-[18px] h-[18px]" /></span>
                       <span className="flex-1 text-sm">{f.name}</span>
-                      <span className={`text-xs font-medium ${p >= 1 ? "text-nova-600 dark:text-nova-300" : "text-[var(--text-muted)]"}`}>
+                      <span className={`text-xs font-medium ${p >= 1 ? "text-emerald-600 dark:text-emerald-400" : "text-[var(--text-muted)]"}`}>
                         {p >= 1 ? "done" : `${Math.round(p * 100)}%`}
                       </span>
                     </div>
@@ -141,7 +141,7 @@ function RingBadge({ pct }: { pct: number }) {
   const c = 2 * Math.PI * r;
   return (
     <svg width="40" height="40" className="-rotate-90 shrink-0">
-      <circle cx="20" cy="20" r={r} strokeWidth="4" className="fill-none stroke-nova-100 dark:stroke-nova-900" />
+      <circle cx="20" cy="20" r={r} strokeWidth="4" className="fill-none stroke-blue-500/10 dark:stroke-blue-400/10" />
       <circle
         cx="20"
         cy="20"
@@ -149,7 +149,7 @@ function RingBadge({ pct }: { pct: number }) {
         strokeWidth="4"
         strokeLinecap="round"
         fill="none"
-        stroke={pct >= 80 ? "#7c5cf0" : "#2ecfdd"}
+        stroke={pct >= 80 ? "#10b981" : "#3b82f6"}
         strokeDasharray={c}
         strokeDashoffset={c * (1 - pct / 100)}
       />

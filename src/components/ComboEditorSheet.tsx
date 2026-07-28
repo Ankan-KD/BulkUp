@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Sheet } from "./ui/sheet";
 import { Button } from "./ui/button";
+import { EditableNumber } from "./ui/editable-number";
 import { useStore } from "@/lib/store";
 import { MealCombo, MealComboItem } from "@/lib/types";
 import { FoodIcon, AppIcon, getCategoryStyle } from "@/lib/icons";
@@ -148,8 +149,14 @@ export function ComboEditorSheet({
                         >
                           <Minus className="w-3 h-3" />
                         </button>
-                        <span className="text-xs tabular-nums w-14 text-center">
-                          {item.quantity}{food.unit === "count" ? "" : food.unit}
+                        <span className="text-xs tabular-nums w-14 flex items-center justify-center">
+                          <EditableNumber
+                            value={item.quantity}
+                            onChange={(v) => setQuantity(item.foodId, Math.max(0, v))}
+                            ariaLabel={`${food.name} quantity`}
+                            className="w-9 bg-transparent"
+                          />
+                          {food.unit === "count" ? "" : food.unit}
                         </span>
                         <button
                           type="button"

@@ -72,15 +72,15 @@ const config: Config = {
         },
       },
       borderRadius: {
-        xl2: "1.25rem",
+        xl2: "1.375rem",
       },
       boxShadow: {
-        soft: "0 2px 10px -2px rgba(5, 6, 20, 0.35), 0 1px 2px rgba(5,6,20,0.2)",
-        card: "0 8px 30px -6px rgba(5, 6, 20, 0.55)",
-        glow: "0 0 0 4px rgba(124, 92, 240, 0.16)",
-        "glow-nova": "0 0 24px -4px rgba(124, 92, 240, 0.55), 0 0 4px rgba(124, 92, 240, 0.4)",
-        "glow-aurora": "0 0 24px -4px rgba(46, 207, 221, 0.5), 0 0 4px rgba(46, 207, 221, 0.35)",
-        "glow-ember": "0 0 24px -4px rgba(245, 96, 31, 0.45), 0 0 4px rgba(245, 96, 31, 0.3)",
+        soft: "0 1px 2px rgba(15, 15, 35, 0.06), 0 4px 16px -6px rgba(15, 15, 35, 0.10)",
+        card: "0 6px 24px -8px rgba(15, 15, 35, 0.16)",
+        glow: "0 0 0 3px rgba(124, 92, 240, 0.12)",
+        "glow-nova": "0 4px 20px -6px rgba(124, 92, 240, 0.35)",
+        "glow-aurora": "0 4px 20px -6px rgba(46, 207, 221, 0.35)",
+        "glow-ember": "0 4px 20px -6px rgba(245, 96, 31, 0.3)",
       },
       keyframes: {
         "grow-in": {

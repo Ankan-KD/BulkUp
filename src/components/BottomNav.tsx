@@ -32,7 +32,7 @@ export function BottomNav({ onLog }: { onLog: () => void }) {
                 className="flex flex-col items-center -translate-y-4"
                 aria-label="Quick log what you ate"
               >
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-nova-500 to-aurora-500 text-white shadow-glow-nova active:scale-95 transition-transform">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-nova-500 to-emerald-500 text-white shadow-soft active:scale-95 transition-transform">
                   <Icon className="w-6 h-6" />
                 </span>
                 <span className="mt-1 text-[11px] font-medium text-nova-400">

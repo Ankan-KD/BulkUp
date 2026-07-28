@@ -45,14 +45,14 @@ export function GrowthRing({
           style={{
             transition: "stroke-dashoffset 500ms cubic-bezier(0.34,1.2,0.64,1), stroke 300ms ease",
             filter: needsAttention
-              ? "drop-shadow(0 0 6px rgba(240,110,60,0.55))"
-              : "drop-shadow(0 0 6px var(--ring-glow, rgba(124,92,240,0.55)))",
+              ? "drop-shadow(0 0 3px rgba(240,110,60,0.35))"
+              : "drop-shadow(0 0 3px var(--ring-glow, rgba(59,130,246,0.35)))",
           }}
         />
         <defs>
           <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="var(--ring-grad-start, #7c5cf0)" />
-            <stop offset="100%" stopColor="var(--ring-grad-end, #2ecfdd)" />
+            <stop offset="0%" stopColor="var(--ring-grad-start, #3b82f6)" />
+            <stop offset="100%" stopColor="var(--ring-grad-end, #7c5cf0)" />
           </linearGradient>
           <linearGradient id="ringGradientWarning" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#f0a53c" />

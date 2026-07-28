@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EditableNumber } from "@/components/ui/editable-number";
 import { Sun, Moon, Monitor, Heart, LogOut, Mail, TrendingUp, TrendingDown, Equal, AlertTriangle } from "lucide-react";
 import { GoalMode } from "@/lib/types";
 import { GOAL_SHORT_LABELS, goalWeightWarning, calorieGoalWarning } from "@/lib/goalCopy";
@@ -184,8 +185,14 @@ function NumberRow({
         >
           −
         </button>
-        <span className="w-20 text-center text-sm tabular-nums font-semibold">
-          {value} <span className="text-[var(--text-muted)] font-normal">{suffix}</span>
+        <span className="w-20 flex items-baseline justify-center gap-1 text-sm tabular-nums font-semibold">
+          <EditableNumber
+            value={value}
+            onChange={(v) => onChange(Math.max(0, v))}
+            ariaLabel={label}
+            className="w-12 bg-transparent"
+          />
+          <span className="text-[var(--text-muted)] font-normal">{suffix}</span>
         </span>
         <button
           onClick={() => onChange(value + step)}

@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { foodProgress } from "@/lib/nutrition";
 import { cn } from "@/lib/utils";
 import { Check, Minus, Plus } from "lucide-react";
+import { EditableNumber } from "./ui/editable-number";
 
 export function FoodChecklistItem({
   food,
@@ -30,7 +31,7 @@ export function FoodChecklistItem({
           "w-full flex items-center gap-3 rounded-xl2 border border-l-[3px] px-4 py-3.5 shadow-soft transition-all duration-150 active:scale-[0.98] text-left",
           style.accentBorder,
           done
-            ? "bg-nova-700/10 border-nova-500/40 shadow-glow-nova dark:bg-nova-300/10"
+            ? "bg-emerald-500/[0.07] border-emerald-500/40 dark:bg-emerald-400/10"
             : cn("glass-panel border-[var(--border)]", style.cardTint)
         )}
       >
@@ -51,7 +52,7 @@ export function FoodChecklistItem({
       className={cn(
         "rounded-xl2 border border-l-[3px] px-4 py-3.5 shadow-soft transition-colors duration-150",
         style.accentBorder,
-        done ? "bg-nova-700/10 border-nova-500/40 shadow-glow-nova dark:bg-nova-300/10" : cn("glass-panel border-[var(--border)]", style.cardTint)
+        done ? "bg-emerald-500/[0.07] border-emerald-500/40 dark:bg-emerald-400/10" : cn("glass-panel border-[var(--border)]", style.cardTint)
       )}
     >
       <button
@@ -78,8 +79,13 @@ export function FoodChecklistItem({
             >
               <Minus className="w-4 h-4" />
             </button>
-            <span className="text-base font-semibold tabular-nums font-display">
-              {loggedQuantity}
+            <span className="text-base font-semibold tabular-nums font-display flex items-baseline">
+              <EditableNumber
+                value={loggedQuantity}
+                onChange={(v) => logQuantity(food.id, Math.max(0, v))}
+                ariaLabel={`${food.name} logged quantity`}
+                className="w-10 bg-transparent"
+              />
               <span className="text-sm font-body font-normal text-[var(--text-muted)]"> / {food.targetQuantity}{food.unit}</span>
             </span>
             <button
@@ -115,7 +121,7 @@ export function FoodChecklistItem({
 function Checkbox({ done, progress }: { done: boolean; progress?: number }) {
   if (done) {
     return (
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-nova-600 text-white animate-pop">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white animate-pop">
         <Check className="w-3.5 h-3.5" strokeWidth={3} />
       </span>
     );

@@ -6,9 +6,9 @@ type Size = "sm" | "md" | "lg" | "icon";
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-gradient-to-br from-nova-500 to-nova-700 text-white hover:from-nova-400 hover:to-nova-600 active:from-nova-600 active:to-nova-800 shadow-glow-nova",
+    "bg-gradient-to-br from-nova-500 to-nova-700 text-white hover:from-nova-400 hover:to-nova-600 active:from-nova-600 active:to-nova-800 shadow-soft",
   secondary:
-    "bg-gradient-to-br from-aurora-400 to-aurora-600 text-void-950 hover:from-aurora-300 hover:to-aurora-500 shadow-glow-aurora",
+    "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-400 hover:to-emerald-500 shadow-soft",
   ghost:
     "bg-transparent text-[var(--text)] hover:bg-nova-500/10",
   outline:

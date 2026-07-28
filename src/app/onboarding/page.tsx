@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import { EditableNumber } from "@/components/ui/editable-number";
 import { BulkUp } from "@/components/BulkUp";
 import { FoodTemplate, GoalMode } from "@/lib/types";
 import { GOAL_DESCRIPTIONS, GOAL_LABELS, onboardingCta, suggestedCalorieGoal, goalWeightWarning, calorieGoalWarning } from "@/lib/goalCopy";
@@ -293,8 +294,13 @@ export default function OnboardingPage() {
                   >
                     −
                   </button>
-                  <span className="w-16 text-center text-sm tabular-nums font-semibold">
-                    {targets[s.name] ?? s.targetQuantity}
+                  <span className="w-16 flex items-center justify-center gap-0.5 text-sm tabular-nums font-semibold">
+                    <EditableNumber
+                      value={targets[s.name] ?? s.targetQuantity}
+                      onChange={(v) => setTargets((t) => ({ ...t, [s.name]: Math.max(0, v) }))}
+                      ariaLabel={`${s.name} target quantity`}
+                      className="w-10 bg-transparent"
+                    />
                     {s.unit === "count" ? "" : s.unit === "serving" ? " svg" : s.unit}
                   </span>
                   <button
@@ -350,8 +356,15 @@ function GoalStepper({
         >
           −
         </button>
-        <span className="text-lg font-display font-semibold tabular-nums">
-          {value} <span className="text-sm font-body font-normal text-[var(--text-muted)]">{suffix}</span>
+        <span className="text-lg font-display font-semibold tabular-nums flex items-baseline gap-1">
+          <EditableNumber
+            value={value}
+            onChange={(v) => onChange(Math.max(0, v))}
+            decimals={1}
+            ariaLabel={label}
+            className="w-14 bg-transparent"
+          />
+          <span className="text-sm font-body font-normal text-[var(--text-muted)]">{suffix}</span>
         </span>
         <button
           onClick={() => onChange(Math.round((value + step) * 10) / 10)}
