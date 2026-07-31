@@ -2,9 +2,9 @@
 
 import { coachQuickPrompts, coachSubheading } from "@/lib/goalCopy";
 import { AppIcon, FoodIcon, getCategoryStyle, resolveFoodIconKey } from "@/lib/icons";
-import { computeTotals } from "@/lib/nutrition";
+import { computeCombinedTotals } from "@/lib/nutrition";
 import { useStore } from "@/lib/store";
-import { FoodTemplate, GoalMode } from "@/lib/types";
+import { DietContribution, FoodCategory, GoalMode, RecentFoodTemplate } from "@/lib/types";
 import {
   CheckCircle2,
   ChevronRight,
@@ -28,11 +28,14 @@ interface ChatMessage {
 }
 
 interface ChatAction {
-  type: "log_existing" | "create_and_log";
+  type: "log_diet" | "log_recent";
+  // log_diet
   foodId?: string;
-  name: string;
+  quantityConsumed?: number;
+  // log_recent
+  recentFoodId?: string;
+  name?: string;
   emoji?: string;
-  quantityConsumed: number;
   unit?: string;
   kind?: string;
   targetQuantity?: number;
@@ -44,6 +47,8 @@ interface ChatAction {
   category?: string;
   customCategory?: string;
   baseIngredient?: string;
+  quantityConsumedRecent?: number;
+  dietContributions?: DietContribution[];
 }
 
 const GREETING: ChatMessage = {
@@ -91,7 +96,8 @@ type SpeechRecognitionLike = {
 };
 
 export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { foods, addQuantity, logQuantity, createAndLogFood, combos, logCombo, settings, today } = useStore();
+  const { foods, recentFoods, addQuantity, logQuantity, logRecentFood, combos, logCombo, settings, today } =
+    useStore();
   const [tab, setTab] = useState<"describe" | "combos" | "coach">("describe");
   const [comboFeedback, setComboFeedback] = useState<{ comboId: string; skipped: string[] } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING]);
@@ -100,7 +106,11 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
 
   // Today's remaining calories/protein, shared by both the logging chat
   // (so its replies can be coach-flavored) and the dedicated Coach tab.
-  const totalsSoFar = useMemo(() => computeTotals(foods, today), [foods, today]);
+  // Combined Diet + Recent Foods, since both count toward what was eaten.
+  const totalsSoFar = useMemo(
+    () => computeCombinedTotals(foods, recentFoods, today),
+    [foods, recentFoods, today]
+  );
   const coachContext = useMemo(
     () => ({
       goalMode: settings.goalMode as GoalMode,
@@ -122,6 +132,7 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const foodsRef = useRef(foods);
+  const recentFoodsRef = useRef(recentFoods);
   const baseTextRef = useRef("");        // text that existed before this mic session started
   const finalTranscriptRef = useRef(""); // finalized speech accumulated across all recognition restarts
   const sessionFinalRef = useRef("");    // finalized speech within the CURRENT recognition() run, rebuilt (not appended) on every onresult
@@ -129,6 +140,7 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
   const listeningRef = useRef(false);    // mirrors `listening` state but readable inside stable effect/listener closures
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   foodsRef.current = foods;
+  recentFoodsRef.current = recentFoods;
 
   const SILENCE_STOP_MS = 2500; // stop the mic after this long with no speech activity
 
@@ -291,44 +303,97 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
     }
   }
 
-  async function applyAction(action: ChatAction): Promise<{ name: string; emoji: string; category?: string }> {
-    if (action.type === "log_existing" && action.foodId) {
+  // Returns null when the action failed to actually persist (e.g. Supabase
+  // insert error, not signed in, "recent_foods"/"recent_food_logs" tables
+  // missing) — previously the return value of logRecentFood was discarded
+  // entirely, so the chat always reported success even when nothing was
+  // saved. Callers MUST check for null instead of assuming success.
+  async function applyAction(action: ChatAction): Promise<{ name: string; emoji: string; category?: string } | null> {
+    // Case 1 — already a Diet item: just update today's progress.
+    if (action.type === "log_diet" && action.foodId) {
       const food = foodsRef.current.find((f) => f.id === action.foodId);
       if (food) {
         if (food.kind === "binary") {
           logQuantity(food.id, food.targetQuantity);
         } else {
-          addQuantity(food.id, action.quantityConsumed);
+          addQuantity(food.id, action.quantityConsumed ?? food.targetQuantity);
         }
         return { name: food.name, emoji: food.emoji, category: food.category };
       }
     }
 
-    // create_and_log, or a log_existing whose foodId didn't resolve (model
-    // hallucinated an id) — either way, create a fresh food and log it now.
-    // Icon resolution follows a strict priority: the model's own icon key if
-    // it's a real known icon, else the category's icon, else a generic one —
-    // so a new AI-created food always gets a sensible, on-theme icon.
-    const category = (action.category as FoodTemplate["category"]) ?? "other";
-    const newFood: Omit<FoodTemplate, "id" | "sortOrder"> = {
-      name: action.name,
+    // Case 2/3 — log into Recent Foods (reusing an existing catalog entry
+    // when possible), optionally crediting matching Diet items along the
+    // way. Icon resolution follows a strict priority: the model's own icon
+    // key if it's a real known icon, else the category's icon, else a
+    // generic one — so a new Recent Food always gets a sensible icon.
+    const category = (action.category as FoodCategory) ?? "other";
+    const existing = action.recentFoodId
+      ? recentFoodsRef.current.find((f) => f.id === action.recentFoodId)
+      : undefined;
+
+    const quantity = action.quantityConsumedRecent ?? action.quantityConsumed ?? existing?.targetQuantity ?? 1;
+
+    // No existing catalog entry to reuse AND no real name to create one
+    // with — this is a malformed action (should already be caught
+    // server-side in route.ts's validateChatResult, but never silently
+    // fall back to a placeholder "Food" entry here either).
+    if (!existing && !(action.name && action.name.trim())) {
+      console.error(`[QuickLogSheet] Dropping log_recent action with no name and no matching recentFoodId.`, action);
+      return null;
+    }
+
+    // Defense in depth against the "0 kcal ghost entry" bug: this should
+    // already be caught server-side (validateChatResult drops new
+    // log_recent actions with no usable calories before they're ever sent
+    // here), but never silently create a new catalog entry with 0/missing
+    // calories on this side either — a real food is never actually 0 kcal.
+    if (!existing && !(typeof action.calories === "number" && action.calories > 0)) {
+      console.error(
+        `[QuickLogSheet] Dropping new log_recent action for "${action.name}" — missing/zero calories, refusing to create a 0-kcal entry.`,
+        action
+      );
+      return null;
+    }
+
+    if (existing) {
+      const result = await logRecentFood({
+        recentFoodId: existing.id,
+        quantity,
+        dietContributions: action.dietContributions,
+      });
+      if (!result) {
+        console.error(`[QuickLogSheet] logRecentFood failed for existing entry "${existing.name}" (${existing.id})`);
+        return null;
+      }
+      return { name: existing.name, emoji: existing.emoji, category: existing.category };
+    }
+
+    const template: Omit<RecentFoodTemplate, "id" | "createdAt"> = {
+      name: action.name!.trim(),
       emoji: resolveFoodIconKey(action.emoji, category),
       targetQuantity: action.targetQuantity ?? 1,
-      unit: (action.unit as FoodTemplate["unit"]) ?? "serving",
+      unit: (action.unit as RecentFoodTemplate["unit"]) ?? "serving",
+      kind: (action.kind as RecentFoodTemplate["kind"]) ?? "binary",
       calories: action.calories ?? 0,
       protein: action.protein ?? 0,
       carbs: action.carbs ?? 0,
       fats: action.fats ?? 0,
       aliases: action.aliases ?? [],
-      archived: false,
-      kind: (action.kind as FoodTemplate["kind"]) ?? "binary",
-      activeDays: [0, 1, 2, 3, 4, 5, 6],
       category,
       customCategory: action.customCategory ?? "",
-      baseIngredient: action.baseIngredient ?? action.name.toLowerCase(),
+      baseIngredient: action.baseIngredient ?? (action.name ?? "food").toLowerCase(),
     };
-    await createAndLogFood(newFood, action.quantityConsumed || newFood.targetQuantity);
-    return { name: newFood.name, emoji: newFood.emoji, category: newFood.category };
+    const result = await logRecentFood({
+      template,
+      quantity,
+      dietContributions: action.dietContributions,
+    });
+    if (!result) {
+      console.error(`[QuickLogSheet] logRecentFood failed while creating new entry "${template.name}"`);
+      return null;
+    }
+    return { name: template.name, emoji: template.emoji, category: template.category };
   }
 
   async function send(value?: string) {
@@ -348,6 +413,7 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
             .filter((m) => m !== GREETING)
             .map((m) => ({ role: m.role, text: m.text })),
           foods: foodsRef.current,
+          recentFoods: recentFoodsRef.current,
           coach: coachContext,
         }),
       });
@@ -355,13 +421,28 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
       const actions: ChatAction[] = Array.isArray(data.actions) ? data.actions : [];
 
       let logged: { name: string; emoji: string; category?: string }[] = [];
+      let failedCount = 0;
       if (data.done && actions.length > 0) {
-        logged = await Promise.all(actions.map(applyAction));
+        const results = await Promise.all(actions.map(applyAction));
+        logged = results.filter((r): r is { name: string; emoji: string; category?: string } => r !== null);
+        failedCount = results.length - logged.length;
+      }
+
+      // If Gemini reported success but one or more actions actually failed
+      // to save (Supabase error, not signed in, etc.), don't let its
+      // confident reply text stand uncorrected — the person needs to know
+      // nothing (or only some of what it says) was actually recorded.
+      let replyText = data.reply || "Got it.";
+      if (failedCount > 0) {
+        replyText =
+          logged.length > 0
+            ? `${replyText}\n\n⚠️ Heads up — ${failedCount} of ${actions.length} item${actions.length > 1 ? "s" : ""} above didn't actually save (a server/database error). Check your connection and try logging ${failedCount > 1 ? "those again" : "it again"}.`
+            : `I couldn't actually save that — something went wrong talking to the database (you may need to sign in again, or there's a server issue). Nothing was logged, please try again.`;
       }
 
       setMessages((m) => [
         ...m,
-        { role: "assistant", text: data.reply || "Got it.", logged: logged.length ? logged : undefined },
+        { role: "assistant", text: replyText, logged: logged.length ? logged : undefined },
       ]);
     } catch {
       setMessages((m) => [

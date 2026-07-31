@@ -12,7 +12,7 @@ import { FoodIcon } from "@/lib/icons";
 import { ArrowLeft, Plus, Copy, Pencil, Trash2, Zap, UtensilsCrossed } from "lucide-react";
 
 export default function CombosPage() {
-  const { combos, foods, logCombo, deleteCombo, duplicateCombo } = useStore();
+  const { combos, foods, recentFoods, logCombo, deleteCombo, duplicateCombo } = useStore();
   const [editing, setEditing] = useState<MealCombo | null | "new">(null);
   const [confirmDelete, setConfirmDelete] = useState<MealCombo | null>(null);
   const [justLogged, setJustLogged] = useState<string | null>(null);
@@ -22,7 +22,9 @@ export default function CombosPage() {
 
   function describeCombo(combo: MealCombo): string {
     const names = combo.items
-      .map((i) => foods.find((f) => f.id === i.foodId)?.name)
+      .map((i) =>
+        i.foodId ? foods.find((f) => f.id === i.foodId)?.name : recentFoods.find((f) => f.id === i.recentFoodId)?.name
+      )
       .filter((n): n is string => !!n);
     if (names.length === 0) return "No foods (edit to add some)";
     return names.join(" · ");

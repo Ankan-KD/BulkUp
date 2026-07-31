@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { Card } from "@/components/ui/card";
 import { Sheet } from "@/components/ui/sheet";
-import { computeTotals, completionPercent, foodProgress } from "@/lib/nutrition";
+import { computeCombinedTotals, completionPercent, foodProgress } from "@/lib/nutrition";
 import { formatDateLabel } from "@/lib/utils";
 import { DayRecord } from "@/lib/types";
 import { AppIcon } from "@/lib/icons";
@@ -14,13 +14,16 @@ import { ReportGeneratorSheet } from "@/components/ReportGeneratorSheet";
 import { Flame, Scale as ScaleIcon, FileText } from "lucide-react";
 
 export default function HistoryPage() {
-  const { foods, history, today } = useStore();
+  const { foods, recentFoods, history, today } = useStore();
   const [selected, setSelected] = useState<DayRecord | null>(null);
   const [view, setView] = useState<"daily" | "weekly" | "progress">("daily");
   const [reportOpen, setReportOpen] = useState(false);
 
   const days = useMemo(
-    () => [...history, today].filter((d) => d.logs.length > 0 || d.weightKg).reverse(),
+    () =>
+      [...history, today]
+        .filter((d) => d.logs.length > 0 || d.recentLogs.length > 0 || d.weightKg)
+        .reverse(),
     [history, today]
   );
 
@@ -62,7 +65,7 @@ export default function HistoryPage() {
       <div className="space-y-2.5">
         {days.map((day) => {
           const pct = completionPercent(foods, day);
-          const totals = computeTotals(foods, day);
+          const totals = computeCombinedTotals(foods, recentFoods, day);
           return (
             <button key={day.date} onClick={() => setSelected(day)} className="w-full text-left">
               <Card className="p-4 flex items-center gap-3">
@@ -102,7 +105,7 @@ export default function HistoryPage() {
                 <p className="text-[11px] text-[var(--text-muted)]">completed</p>
               </div>
               <div className="rounded-xl bg-orange-500/[0.06] dark:bg-orange-400/[0.08] py-3">
-                <p className="text-lg font-display font-semibold text-orange-600 dark:text-orange-400">{computeTotals(foods, selected).calories}</p>
+                <p className="text-lg font-display font-semibold text-orange-600 dark:text-orange-400">{computeCombinedTotals(foods, recentFoods, selected).calories}</p>
                 <p className="text-[11px] text-[var(--text-muted)]">kcal</p>
               </div>
               <div className="rounded-xl bg-nova-700/6 dark:bg-nova-100/6 py-3">
@@ -127,6 +130,29 @@ export default function HistoryPage() {
                   );
                 })}
             </div>
+
+            {selected.recentLogs.length > 0 && (
+              <div>
+                <h3 className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)] mb-1.5">
+                  Recent Foods that day
+                </h3>
+                <div className="space-y-2">
+                  {selected.recentLogs.map((log) => {
+                    const f = recentFoods.find((r) => r.id === log.recentFoodId);
+                    if (!f) return null;
+                    return (
+                      <div key={log.recentFoodId} className="flex items-center gap-3 py-1.5">
+                        <span className="text-lg"><AppIcon name={f.emoji} className="w-[18px] h-[18px]" /></span>
+                        <span className="flex-1 text-sm">{f.name}</span>
+                        <span className="text-xs font-medium text-[var(--text-muted)]">
+                          {log.loggedQuantity} {f.unit === "serving" || f.unit === "count" ? "" : f.unit}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Sheet>

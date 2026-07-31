@@ -135,7 +135,7 @@ export function buildReportData(params: {
   const dayDetails: ReportDayDetail[] = [];
 
   for (const date of dateList) {
-    const record: DayRecord = byDate.get(date) ?? { date, logs: [], waterMl: 0 };
+    const record: DayRecord = byDate.get(date) ?? { date, logs: [], recentLogs: [], waterMl: 0 };
     const totals = computeTotals(foods, record);
     const hasData = record.logs.length > 0 || record.weightKg !== undefined || record.waterMl > 0;
 

@@ -5,7 +5,7 @@ import { Sheet } from "./ui/sheet";
 import { Button } from "./ui/button";
 import { EditableNumber } from "./ui/editable-number";
 import { useStore } from "@/lib/store";
-import { MealCombo, MealComboItem } from "@/lib/types";
+import { FoodTemplate, MealCombo, MealComboItem, RecentFoodTemplate } from "@/lib/types";
 import { FoodIcon, AppIcon, getCategoryStyle } from "@/lib/icons";
 import { Plus, Minus, X, Search } from "lucide-react";
 
@@ -24,6 +24,18 @@ const empty: Omit<MealCombo, "id" | "sortOrder"> = {
   items: [],
 };
 
+// A combo item can reference either a Diet food or a Recent Food — this
+// resolves either into the common shape the UI needs to render it.
+type ResolvedItem = {
+  key: string; // foodId or recentFoodId
+  source: "diet" | "recent";
+  name: string;
+  emoji: string;
+  category: FoodTemplate["category"];
+  unit: FoodTemplate["unit"];
+  kind: FoodTemplate["kind"];
+};
+
 export function ComboEditorSheet({
   combo,
   open,
@@ -33,9 +45,12 @@ export function ComboEditorSheet({
   open: boolean;
   onClose: () => void;
 }) {
-  const { foods, addCombo, updateCombo } = useStore();
+  const { foods, recentFoods, addCombo, updateCombo } = useStore();
   const [form, setForm] = useState(empty);
   const [search, setSearch] = useState("");
+  // Which catalog the picker below is showing — per the redesign, a combo
+  // can pull from either the Diet or Recent Foods, but never owns either.
+  const [pickerSource, setPickerSource] = useState<"diet" | "recent">("diet");
 
   useEffect(() => {
     if (combo) {
@@ -44,6 +59,7 @@ export function ComboEditorSheet({
       setForm(empty);
     }
     setSearch("");
+    setPickerSource("diet");
   }, [combo, open]);
 
   const activeFoods = useMemo(() => foods.filter((f) => !f.archived), [foods]);
@@ -52,28 +68,63 @@ export function ComboEditorSheet({
     if (!q) return activeFoods;
     return activeFoods.filter((f) => f.name.toLowerCase().includes(q));
   }, [activeFoods, search]);
+  const filteredRecent = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return recentFoods;
+    return recentFoods.filter((f) => f.name.toLowerCase().includes(q));
+  }, [recentFoods, search]);
 
-  function itemFor(foodId: string): MealComboItem | undefined {
-    return form.items.find((i) => i.foodId === foodId);
+  function resolve(item: MealComboItem): ResolvedItem | null {
+    if (item.foodId) {
+      const f = foods.find((x) => x.id === item.foodId);
+      if (!f) return null;
+      return { key: f.id, source: "diet", name: f.name, emoji: f.emoji, category: f.category, unit: f.unit, kind: f.kind };
+    }
+    if (item.recentFoodId) {
+      const f = recentFoods.find((x) => x.id === item.recentFoodId);
+      if (!f) return null;
+      return { key: f.id, source: "recent", name: f.name, emoji: f.emoji, category: f.category, unit: f.unit, kind: f.kind };
+    }
+    return null;
   }
 
-  function toggleFood(foodId: string) {
-    const food = foods.find((f) => f.id === foodId);
-    if (!food) return;
+  function isSelected(source: "diet" | "recent", id: string) {
+    return form.items.some((i) => (source === "diet" ? i.foodId === id : i.recentFoodId === id));
+  }
+
+  function toggleDietFood(food: FoodTemplate) {
     setForm((f) => {
-      const exists = f.items.some((i) => i.foodId === foodId);
-      if (exists) {
-        return { ...f, items: f.items.filter((i) => i.foodId !== foodId) };
+      if (isSelected("diet", food.id)) {
+        return { ...f, items: f.items.filter((i) => i.foodId !== food.id) };
       }
       const defaultQty = food.kind === "binary" ? food.targetQuantity : food.targetQuantity || 1;
-      return { ...f, items: [...f.items, { foodId, quantity: defaultQty }] };
+      return { ...f, items: [...f.items, { foodId: food.id, quantity: defaultQty }] };
     });
   }
 
-  function setQuantity(foodId: string, quantity: number) {
+  function toggleRecentFood(food: RecentFoodTemplate) {
+    setForm((f) => {
+      if (isSelected("recent", food.id)) {
+        return { ...f, items: f.items.filter((i) => i.recentFoodId !== food.id) };
+      }
+      const defaultQty = food.kind === "binary" ? food.targetQuantity : food.targetQuantity || 1;
+      return { ...f, items: [...f.items, { recentFoodId: food.id, quantity: defaultQty }] };
+    });
+  }
+
+  function setQuantity(source: "diet" | "recent", id: string, quantity: number) {
     setForm((f) => ({
       ...f,
-      items: f.items.map((i) => (i.foodId === foodId ? { ...i, quantity: Math.max(0, quantity) } : i)),
+      items: f.items.map((i) =>
+        (source === "diet" ? i.foodId === id : i.recentFoodId === id) ? { ...i, quantity: Math.max(0, quantity) } : i
+      ),
+    }));
+  }
+
+  function removeItem(source: "diet" | "recent", id: string) {
+    setForm((f) => ({
+      ...f,
+      items: f.items.filter((i) => (source === "diet" ? i.foodId !== id : i.recentFoodId !== id)),
     }));
   }
 
@@ -86,6 +137,8 @@ export function ComboEditorSheet({
     }
     onClose();
   }
+
+  const pickerList = pickerSource === "diet" ? filteredFoods : filteredRecent;
 
   return (
     <Sheet open={open} onClose={onClose} title={combo ? "Edit combo" : "New combo"}>
@@ -100,8 +153,10 @@ export function ComboEditorSheet({
                 title={opt.label}
                 aria-label={opt.label}
                 onClick={() => setForm((f) => ({ ...f, icon: opt.key }))}
-                className={`rounded-xl transition-shadow ${
-                  form.icon === opt.key ? "ring-2 ring-offset-2 ring-offset-[var(--bg-elevated)] ring-nova-500" : ""
+                className={`h-11 w-11 flex items-center justify-center rounded-xl border transition-colors ${
+                  form.icon === opt.key
+                    ? "border-nova-500 ring-2 ring-offset-2 ring-offset-[var(--bg-elevated)] ring-nova-500"
+                    : "border-[var(--border)]"
                 }`}
               >
                 <FoodIcon iconKey={opt.key} size="lg" />
@@ -128,41 +183,50 @@ export function ComboEditorSheet({
           {form.items.length > 0 && (
             <div className="space-y-2 mb-3">
               {form.items.map((item) => {
-                const food = foods.find((f) => f.id === item.foodId);
-                if (!food) return null;
+                const resolved = resolve(item);
+                if (!resolved) return null;
                 return (
                   <div
-                    key={item.foodId}
+                    key={`${resolved.source}:${resolved.key}`}
                     className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5"
                   >
-                    <FoodIcon iconKey={food.emoji} category={food.category} size="sm" />
-                    <span className="flex-1 text-sm font-medium truncate">{food.name}</span>
-                    {food.kind === "binary" ? (
+                    <FoodIcon iconKey={resolved.emoji} category={resolved.category} size="sm" />
+                    <span className="flex-1 text-sm font-medium truncate">
+                      {resolved.name}
+                      {resolved.source === "recent" && (
+                        <span className="ml-1.5 text-[10px] font-normal text-[var(--text-muted)] align-middle">Recent</span>
+                      )}
+                    </span>
+                    {resolved.kind === "binary" ? (
                       <span className="text-xs text-[var(--text-muted)]">1 tap</span>
                     ) : (
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
-                          onClick={() => setQuantity(item.foodId, item.quantity - (food.unit === "count" ? 1 : 50))}
+                          onClick={() =>
+                            setQuantity(resolved.source, resolved.key, item.quantity - (resolved.unit === "count" ? 1 : 50))
+                          }
                           className="h-7 w-7 flex items-center justify-center rounded-full bg-nova-700/8 dark:bg-nova-100/10"
-                          aria-label={`Decrease ${food.name}`}
+                          aria-label={`Decrease ${resolved.name}`}
                         >
                           <Minus className="w-3 h-3" />
                         </button>
                         <span className="text-xs tabular-nums w-14 flex items-center justify-center">
                           <EditableNumber
                             value={item.quantity}
-                            onChange={(v) => setQuantity(item.foodId, Math.max(0, v))}
-                            ariaLabel={`${food.name} quantity`}
+                            onChange={(v) => setQuantity(resolved.source, resolved.key, Math.max(0, v))}
+                            ariaLabel={`${resolved.name} quantity`}
                             className="w-9 bg-transparent"
                           />
-                          {food.unit === "count" ? "" : food.unit}
+                          {resolved.unit === "count" ? "" : resolved.unit}
                         </span>
                         <button
                           type="button"
-                          onClick={() => setQuantity(item.foodId, item.quantity + (food.unit === "count" ? 1 : 50))}
+                          onClick={() =>
+                            setQuantity(resolved.source, resolved.key, item.quantity + (resolved.unit === "count" ? 1 : 50))
+                          }
                           className="h-7 w-7 flex items-center justify-center rounded-full bg-nova-700/8 dark:bg-nova-100/10"
-                          aria-label={`Increase ${food.name}`}
+                          aria-label={`Increase ${resolved.name}`}
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -170,9 +234,9 @@ export function ComboEditorSheet({
                     )}
                     <button
                       type="button"
-                      onClick={() => toggleFood(item.foodId)}
+                      onClick={() => removeItem(resolved.source, resolved.key)}
                       className="h-7 w-7 flex items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-ember-600/10 hover:text-ember-600"
-                      aria-label={`Remove ${food.name}`}
+                      aria-label={`Remove ${resolved.name}`}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -182,25 +246,46 @@ export function ComboEditorSheet({
             </div>
           )}
 
+          {/* Diet vs Recent Foods source picker — a combo only ever references items from one of these two catalogs, it never owns either. */}
+          <div className="grid grid-cols-2 gap-1.5 rounded-xl2 bg-nova-700/6 dark:bg-nova-100/6 p-1 mb-2">
+            {([
+              { key: "diet" as const, label: "Diet" },
+              { key: "recent" as const, label: "Recent Foods" },
+            ]).map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setPickerSource(s.key)}
+                className={`py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  pickerSource === s.key ? "bg-[var(--bg-elevated)] shadow-soft text-[var(--text)]" : "text-[var(--text-muted)]"
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
           <div className="relative mb-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search your foods…"
+              placeholder={pickerSource === "diet" ? "Search your Diet…" : "Search Recent Foods…"}
               className="input pl-8"
             />
           </div>
 
           <div className="max-h-52 overflow-y-auto no-scrollbar space-y-1.5">
-            {filteredFoods.map((food) => {
-              const selected = !!itemFor(food.id);
+            {pickerList.map((food) => {
+              const selected = isSelected(pickerSource, food.id);
               const style = getCategoryStyle(food.category);
               return (
                 <button
                   key={food.id}
                   type="button"
-                  onClick={() => toggleFood(food.id)}
+                  onClick={() =>
+                    pickerSource === "diet" ? toggleDietFood(food as FoodTemplate) : toggleRecentFood(food as RecentFoodTemplate)
+                  }
                   className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors ${
                     selected
                       ? `${style.chipBg} ring-1 ring-inset ${style.ring}`
@@ -213,9 +298,11 @@ export function ComboEditorSheet({
                 </button>
               );
             })}
-            {filteredFoods.length === 0 && (
+            {pickerList.length === 0 && (
               <p className="text-xs text-[var(--text-muted)] text-center py-4">
-                No foods match. Add foods in the Foods tab first.
+                {pickerSource === "diet"
+                  ? "No foods match. Add foods in the Diet tab first."
+                  : "No Recent Foods match yet — they show up here once you've logged something outside your Diet."}
               </p>
             )}
           </div>

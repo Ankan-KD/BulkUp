@@ -64,42 +64,58 @@ export function AppIcon({
   return <Comp className={className} {...props} />;
 }
 
-const BADGE_SIZE: Record<"sm" | "md" | "lg", string> = {
+const BADGE_SIZE: Record<"sm" | "md" | "lg" | "xl", string> = {
   sm: "h-8 w-8 rounded-lg",
   md: "h-9 w-9 rounded-xl",
   lg: "h-11 w-11 rounded-xl",
+  xl: "h-[50px] w-[50px] rounded-2xl",
 };
 
-const GLYPH_SIZE: Record<"sm" | "md" | "lg", string> = {
-  sm: "w-4 h-4",
-  md: "w-[18px] h-[18px]",
-  lg: "w-5 h-5",
+const GLYPH_SIZE: Record<"sm" | "md" | "lg" | "xl", string> = {
+  sm: "w-6 h-6",   // 24px in a 32px footprint (~75%) — used for section headers, combo tiles, archived rows
+  md: "w-7 h-7",   // 28px in a 36px footprint (~78%) — the Foods tab's per-food row icon
+  lg: "w-9 h-9",   // 36px in a 44px footprint (~82%) — icon pickers, combo cards
+  xl: "w-8 h-8", // 44px in a 52px footprint (~85%) — the main food-log checklist
 };
 
 /**
- * A colourful, "filled" premium icon badge for a food or category — the
- * building block for every food row and section header. Colour is driven
- * entirely by category (see categoryStyles.ts), and the icon key resolves
- * through the food -> category -> fallback priority above, so it always
- * renders something on-brand even for freshly AI-created foods.
+ * A food/category icon. Colour is driven entirely by category (see
+ * categoryStyles.ts), and the icon key resolves through the food ->
+ * category -> fallback priority above, so it always renders something
+ * on-brand even for freshly AI-created foods.
  *
  * Uses lucide-react's stroke icons with a soft currentColor fill layered
  * underneath, giving a duotone/premium look without pulling in a second
  * icon package.
+ *
+ * Renders as a bare glyph by default — no background box/badge around it,
+ * anywhere in the app. `variant="badge"` (a small tinted rounded box behind
+ * the icon) is kept available but unused; flip a call site back to it only
+ * if a future spot genuinely needs the boxed look again.
  */
 export function FoodIcon({
   iconKey,
   category,
   size = "md",
   className,
+  variant = "plain",
 }: {
   iconKey?: string | null;
   category?: FoodCategory | string | null;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   className?: string;
+  variant?: "badge" | "plain";
 }) {
   const style = getCategoryStyle(category);
   const Icon = IconMap[resolveFoodIconKey(iconKey, category)] ?? IconMap[FALLBACK_ICON_KEY];
+
+  if (variant === "plain") {
+    return (
+      <span className={cn("inline-flex shrink-0 items-center justify-center", BADGE_SIZE[size], className)}>
+        <Icon className={cn(GLYPH_SIZE[size], style.iconColor)} fill="currentColor" fillOpacity={0.25} strokeWidth={1.5} />
+      </span>
+    );
+  }
 
   return (
     <span

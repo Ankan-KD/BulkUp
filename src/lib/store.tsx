@@ -6,14 +6,17 @@ import { supabase } from "./supabase";
 import {
   DailyFoodLog,
   DayRecord,
+  DietContribution,
   FoodTemplate,
   MealCombo,
   MilestoneKey,
   MilestoneRecord,
+  RecentFoodLogEntry,
+  RecentFoodTemplate,
   UserSettings,
   WeightEntry,
 } from "./types";
-import { addDaysISO, dayOfWeekFromISO, todayISO } from "./utils";
+import { addDaysISO, dayOfWeekFromISO, isFoodScheduledOn, todayISO } from "./utils";
 
 const DEFAULT_SETTINGS: UserSettings = {
   name: "",
@@ -45,6 +48,7 @@ interface FoodRow {
   archived: boolean;
   kind: string;
   active_days: number[];
+  active_date: string | null;
   category: string;
   custom_category: string;
   base_ingredient: string;
@@ -66,6 +70,7 @@ function foodFromRow(r: FoodRow): FoodTemplate {
     archived: r.archived,
     kind: r.kind as FoodTemplate["kind"],
     activeDays: r.active_days && r.active_days.length > 0 ? r.active_days : [0, 1, 2, 3, 4, 5, 6],
+    dateOnly: r.active_date ?? null,
     category: (r.category as FoodTemplate["category"]) || "other",
     customCategory: r.custom_category ?? "",
     baseIngredient: r.base_ingredient ?? "",
@@ -116,14 +121,52 @@ function settingsToRow(s: Partial<UserSettings>) {
 }
 
 function emptyDay(date: string): DayRecord {
-  return { date, logs: [], waterMl: 0 };
+  return { date, logs: [], recentLogs: [], waterMl: 0 };
+}
+
+interface RecentFoodRow {
+  id: string;
+  name: string;
+  emoji: string;
+  target_quantity: number;
+  unit: string;
+  kind: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  aliases: string[];
+  category: string;
+  custom_category: string;
+  base_ingredient: string;
+  created_at: string;
+}
+
+function recentFoodFromRow(r: RecentFoodRow): RecentFoodTemplate {
+  return {
+    id: r.id,
+    name: r.name,
+    emoji: r.emoji,
+    targetQuantity: Number(r.target_quantity),
+    unit: r.unit as RecentFoodTemplate["unit"],
+    kind: r.kind as RecentFoodTemplate["kind"],
+    calories: Number(r.calories),
+    protein: Number(r.protein),
+    carbs: Number(r.carbs),
+    fats: Number(r.fats),
+    aliases: r.aliases ?? [],
+    category: (r.category as RecentFoodTemplate["category"]) || "other",
+    customCategory: r.custom_category ?? "",
+    baseIngredient: r.base_ingredient ?? "",
+    createdAt: (r.created_at || "").slice(0, 10),
+  };
 }
 
 interface ComboRow {
   id: string;
   name: string;
   icon: string;
-  items: { foodId: string; quantity: number }[] | null;
+  items: { foodId?: string; recentFoodId?: string; quantity: number }[] | null;
   sort_order: number;
 }
 
@@ -134,8 +177,12 @@ function comboFromRow(r: ComboRow): MealCombo {
     icon: r.icon || "UtensilsCrossed",
     items: Array.isArray(r.items)
       ? r.items
-          .filter((i) => i && typeof i.foodId === "string")
-          .map((i) => ({ foodId: i.foodId, quantity: Number(i.quantity) || 0 }))
+          .filter((i) => i && (typeof i.foodId === "string" || typeof i.recentFoodId === "string"))
+          .map((i) => ({
+            foodId: typeof i.foodId === "string" ? i.foodId : undefined,
+            recentFoodId: typeof i.recentFoodId === "string" ? i.recentFoodId : undefined,
+            quantity: Number(i.quantity) || 0,
+          }))
       : [],
     sortOrder: r.sort_order,
   };
@@ -165,6 +212,7 @@ function milestoneFromRow(r: MilestoneRow): MilestoneRecord {
 interface StoreShape {
   settings: UserSettings;
   foods: FoodTemplate[];
+  recentFoods: RecentFoodTemplate[];
   today: DayRecord;
   history: DayRecord[];
   weights: WeightEntry[];
@@ -172,10 +220,21 @@ interface StoreShape {
   milestones: MilestoneRecord[];
 }
 
+// Input for logRecentFood — either reference an existing Recent Foods
+// catalog entry (recentFoodId) or supply a brand new one (template) to be
+// created on the fly. dietContributions lets AI Case 3 (composite dish
+// whose ingredients match existing Diet items) credit those Diet items in
+// the same action as logging the dish itself.
+interface LogRecentFoodInput {
+  recentFoodId?: string;
+  template?: Omit<RecentFoodTemplate, "id" | "createdAt">;
+  quantity: number;
+  dietContributions?: DietContribution[];
+}
+
 interface StoreContextValue extends StoreShape {
   updateSettings: (patch: Partial<UserSettings>) => void;
   addFood: (food: Omit<FoodTemplate, "id" | "sortOrder">) => void;
-  createAndLogFood: (food: Omit<FoodTemplate, "id" | "sortOrder">, quantityConsumed: number) => Promise<string | null>;
   updateFood: (id: string, patch: Partial<FoodTemplate>) => void;
   archiveFood: (id: string) => void;
   deleteFood: (id: string) => void;
@@ -190,6 +249,13 @@ interface StoreContextValue extends StoreShape {
   deleteCombo: (id: string) => void;
   logCombo: (id: string) => { loggedNames: string[]; skippedNames: string[] };
   recordMilestone: (key: MilestoneKey) => void;
+  // ── Recent Foods ──────────────────────────────────────────────────
+  logRecentFood: (input: LogRecentFoodInput) => Promise<string | null>;
+  moveRecentFoodToDiet: (
+    recentFoodId: string,
+    schedule: { activeDays: number[]; dateOnly?: string | null }
+  ) => void;
+  deleteRecentFood: (id: string) => void;
   ready: boolean;
 }
 
@@ -202,6 +268,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<StoreShape>({
     settings: DEFAULT_SETTINGS,
     foods: [],
+    recentFoods: [],
     today: emptyDay(todayISO()),
     history: [],
     weights: [],
@@ -218,6 +285,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setState({
         settings: DEFAULT_SETTINGS,
         foods: [],
+        recentFoods: [],
         today: emptyDay(todayISO()),
         history: [],
         weights: [],
@@ -235,7 +303,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     async function load() {
       const sinceISO = addDaysISO(todayISO(), -HISTORY_WINDOW_DAYS);
 
-      const [settingsRes, foodsRes, logsRes, waterRes, weightsRes, combosRes, milestonesRes] = await Promise.all([
+      const [
+        settingsRes,
+        foodsRes,
+        logsRes,
+        waterRes,
+        weightsRes,
+        combosRes,
+        milestonesRes,
+        recentFoodsRes,
+        recentLogsRes,
+      ] = await Promise.all([
         supabase!.from("user_settings").select("*").eq("user_id", uid).maybeSingle(),
         supabase!.from("foods").select("*").eq("user_id", uid).order("sort_order", { ascending: true }),
         supabase!
@@ -251,12 +329,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         supabase!.from("weight_entries").select("*").eq("user_id", uid).order("date", { ascending: true }),
         supabase!.from("meal_combos").select("*").eq("user_id", uid).order("sort_order", { ascending: true }),
         supabase!.from("milestones").select("*").eq("user_id", uid),
+        supabase!.from("recent_foods").select("*").eq("user_id", uid).order("created_at", { ascending: false }),
+        supabase!
+          .from("recent_food_logs")
+          .select("*")
+          .eq("user_id", uid)
+          .gte("date", sinceISO),
       ]);
 
       if (cancelled) return;
 
       const settings = settingsRes.data ? settingsFromRow(settingsRes.data) : DEFAULT_SETTINGS;
       const foods = (foodsRes.data ?? []).map(foodFromRow);
+      const recentFoods = (recentFoodsRes.data ?? []).map(recentFoodFromRow);
       const weights: WeightEntry[] = (weightsRes.data ?? []).map((w) => ({
         date: w.date,
         weightKg: Number(w.weight_kg),
@@ -275,7 +360,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
       for (const log of logsRes.data ?? []) {
         const d = dayFor(log.date);
-        d.logs.push({ foodId: log.food_id, loggedQuantity: Number(log.logged_quantity) });
+        d.logs.push({
+          foodId: log.food_id,
+          loggedQuantity: Number(log.logged_quantity),
+          contributedQuantity: Number(log.contributed_quantity ?? 0),
+        });
+      }
+      for (const log of recentLogsRes.data ?? []) {
+        const d = dayFor(log.date);
+        d.recentLogs.push({
+          recentFoodId: log.recent_food_id,
+          loggedQuantity: Number(log.logged_quantity),
+          mapped: !!log.mapped,
+        });
       }
       for (const w of waterRes.data ?? []) {
         dayFor(w.date).waterMl = Number(w.water_ml);
@@ -289,7 +386,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       byDate.delete(today);
       const history = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 
-      setState({ settings, foods, today: todayRecord, history, weights, combos, milestones });
+      setState({ settings, foods, recentFoods, today: todayRecord, history, weights, combos, milestones });
       setReady(true);
     }
 
@@ -306,6 +403,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "user_settings", filter: `user_id=eq.${uid}` }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "meal_combos", filter: `user_id=eq.${uid}` }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "milestones", filter: `user_id=eq.${uid}` }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "recent_foods", filter: `user_id=eq.${uid}` }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "recent_food_logs", filter: `user_id=eq.${uid}` }, () => load())
       .subscribe();
 
     return () => {
@@ -364,6 +463,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         archived: food.archived,
         kind: food.kind,
         active_days: food.activeDays,
+        active_date: food.dateOnly ?? null,
         category: food.category,
         custom_category: food.customCategory,
         base_ingredient: food.baseIngredient,
@@ -385,47 +485,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
   }
 
-  async function createAndLogFood(
-    food: Omit<FoodTemplate, "id" | "sortOrder">,
-    quantityConsumed: number
-  ): Promise<string | null> {
-    if (!supabase || !user) return null;
-    const sortOrder = stateRef.current.foods.length;
-    const { data, error } = await supabase
-      .from("foods")
-      .insert({
-        user_id: user.id,
-        name: food.name,
-        emoji: food.emoji,
-        target_quantity: food.targetQuantity,
-        unit: food.unit,
-        calories: food.calories,
-        protein: food.protein,
-        carbs: food.carbs,
-        fats: food.fats,
-        aliases: food.aliases,
-        sort_order: sortOrder,
-        archived: food.archived,
-        kind: food.kind,
-        active_days: food.activeDays,
-        category: food.category,
-        custom_category: food.customCategory,
-        base_ingredient: food.baseIngredient,
-      })
-      .select()
-      .single();
-
-    if (error || !data) {
-      console.error("createAndLogFood failed", error?.message);
-      return null;
-    }
-
-    const created = foodFromRow(data as FoodRow);
-    setState((s) => ({ ...s, foods: [...s.foods, created] }));
-    upsertTodayLog(created.id, quantityConsumed);
-    return created.id;
-  }
-
   function updateFood(id: string, patch: Partial<FoodTemplate>) {
     setState((s) => ({
       ...s,
@@ -445,6 +504,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (patch.archived !== undefined) row.archived = patch.archived;
     if (patch.kind !== undefined) row.kind = patch.kind;
     if (patch.activeDays !== undefined) row.active_days = patch.activeDays;
+    if (patch.dateOnly !== undefined) row.active_date = patch.dateOnly;
     if (patch.category !== undefined) row.category = patch.category;
     if (patch.customCategory !== undefined) row.custom_category = patch.customCategory;
     if (patch.baseIngredient !== undefined) row.base_ingredient = patch.baseIngredient;
@@ -488,21 +548,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
   }
 
-  function upsertTodayLog(foodId: string, quantity: number) {
+  // contributedQuantity, when passed, is the new *absolute* contributed
+  // total to persist (not a delta) — callers resolve that themselves from
+  // stateRef so we don't need to peek inside the setState updater. Omitting
+  // it (the normal direct-log path) preserves whatever contributed amount
+  // was already on the row.
+  function upsertTodayLog(foodId: string, quantity: number, contributedQuantity?: number) {
     const date = todayISO();
     const clamped = Math.max(0, quantity);
+    const existingBefore = stateRef.current.today.logs.find((l) => l.foodId === foodId);
+    const resolvedContributed =
+      contributedQuantity !== undefined ? Math.max(0, contributedQuantity) : existingBefore?.contributedQuantity ?? 0;
     setState((s) => {
       const existing = s.today.logs.find((l) => l.foodId === foodId);
       const logs: DailyFoodLog[] = existing
-        ? s.today.logs.map((l) => (l.foodId === foodId ? { ...l, loggedQuantity: clamped } : l))
-        : [...s.today.logs, { foodId, loggedQuantity: clamped }];
+        ? s.today.logs.map((l) =>
+            l.foodId === foodId ? { ...l, loggedQuantity: clamped, contributedQuantity: resolvedContributed } : l
+          )
+        : [...s.today.logs, { foodId, loggedQuantity: clamped, contributedQuantity: resolvedContributed }];
       return { ...s, today: { ...s.today, logs } };
     });
     if (!supabase || !user) return;
     supabase
       .from("day_logs")
       .upsert(
-        { user_id: user.id, date, food_id: foodId, logged_quantity: clamped },
+        { user_id: user.id, date, food_id: foodId, logged_quantity: clamped, contributed_quantity: resolvedContributed },
         { onConflict: "user_id,date,food_id" }
       )
       .then(({ error }) => {
@@ -518,6 +588,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const existing = stateRef.current.today.logs.find((l) => l.foodId === foodId);
     const current = existing?.loggedQuantity ?? 0;
     upsertTodayLog(foodId, current + delta);
+  }
+
+  // Same as addQuantity, but marks the added amount as credited via a
+  // Recent Food's ingredients (e.g. biryani crediting Rice) rather than a
+  // direct tap on the Diet checklist. Diet progress math is identical
+  // either way — this only feeds the Dashboard's Today's Consumption view,
+  // which uses it to avoid double-showing ingredients that were only eaten
+  // as part of a composite dish (see logRecentFood's dietContributions).
+  function creditContribution(foodId: string, delta: number) {
+    // Guard against a foodId that isn't actually one of the user's Diet
+    // items (e.g. the AI echoing back a mismatched/stale id). Without this,
+    // upsertTodayLog would happily write a log row keyed to an id the Diet
+    // checklist never reads, and the credit would silently disappear even
+    // though the chat reply said it succeeded.
+    const food = stateRef.current.foods.find((f) => f.id === foodId);
+    if (!food) {
+      console.warn(`creditContribution: ignoring unknown foodId "${foodId}" — no matching Diet item.`);
+      return;
+    }
+    const existing = stateRef.current.today.logs.find((l) => l.foodId === foodId);
+    const currentLogged = existing?.loggedQuantity ?? 0;
+    const currentContributed = existing?.contributedQuantity ?? 0;
+    upsertTodayLog(foodId, currentLogged + delta, currentContributed + delta);
   }
 
   function toggleBinary(foodId: string) {
@@ -641,22 +734,162 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   function logCombo(id: string) {
     const combo = stateRef.current.combos.find((c) => c.id === id);
     if (!combo) return { loggedNames: [], skippedNames: [] };
-    const todayDow = dayOfWeekFromISO(stateRef.current.today.date); // 0 = Sunday ... 6 = Saturday, matches FoodTemplate.activeDays
+    const todayDate = stateRef.current.today.date;
     const loggedNames: string[] = [];
     const skippedNames: string[] = [];
     for (const item of combo.items) {
+      if (item.recentFoodId) {
+        // Recent Foods items always log — they have no schedule to miss.
+        const recentFood = stateRef.current.recentFoods.find((f) => f.id === item.recentFoodId);
+        if (!recentFood) continue; // deleted since the combo was saved — skip silently
+        logRecentFood({ recentFoodId: item.recentFoodId, quantity: item.quantity });
+        loggedNames.push(recentFood.name);
+        continue;
+      }
       const food = stateRef.current.foods.find((f) => f.id === item.foodId);
       if (!food) continue; // food was deleted since the combo was saved — skip it silently
-      if (!food.activeDays.includes(todayDow)) {
+      if (!isFoodScheduledOn(food, todayDate)) {
         // Not scheduled for today — skip rather than adding calories that
         // won't show up anywhere in "Today's Foods" (see known issue).
         skippedNames.push(food.name);
         continue;
       }
-      addQuantity(item.foodId, item.quantity);
+      addQuantity(item.foodId!, item.quantity);
       loggedNames.push(food.name);
     }
     return { loggedNames, skippedNames };
+  }
+
+  // ── Recent Foods ─────────────────────────────────────────────────────
+  // Foods eaten that are NOT part of the Diet (Case 2/3 of the AI logging
+  // spec, and manual "log something one-off" entries). These never touch
+  // the `foods` (Diet) table or Today's Checklist — they get their own
+  // catalog (recent_foods) + per-day history (recent_food_logs).
+
+  async function logRecentFood(input: LogRecentFoodInput): Promise<string | null> {
+    if (!supabase || !user) {
+      console.error(
+        `[logRecentFood] Aborted — ${!supabase ? "no Supabase client configured" : "no signed-in user"}. Nothing was saved for "${input.template?.name ?? input.recentFoodId ?? "unknown"}".`
+      );
+      return null;
+    }
+    const date = stateRef.current.today.date;
+
+    let recentFoodId = input.recentFoodId ?? null;
+
+    if (!recentFoodId) {
+      if (!input.template) return null;
+      const t = input.template;
+      const { data, error } = await supabase
+        .from("recent_foods")
+        .insert({
+          user_id: user.id,
+          name: t.name,
+          emoji: t.emoji,
+          target_quantity: t.targetQuantity,
+          unit: t.unit,
+          kind: t.kind,
+          calories: t.calories,
+          protein: t.protein,
+          carbs: t.carbs,
+          fats: t.fats,
+          aliases: t.aliases,
+          category: t.category,
+          custom_category: t.customCategory,
+          base_ingredient: t.baseIngredient,
+        })
+        .select()
+        .single();
+      if (error || !data) {
+        console.error("logRecentFood (create catalog entry) failed", error?.message);
+        return null;
+      }
+      const created = recentFoodFromRow(data as RecentFoodRow);
+      setState((s) => ({ ...s, recentFoods: [created, ...s.recentFoods] }));
+      recentFoodId = created.id;
+    }
+
+    const clamped = Math.max(0, input.quantity);
+    const hasContribution = !!(input.dietContributions && input.dietContributions.some((c) => c.foodId && c.quantity));
+    setState((s) => {
+      const existing = s.today.recentLogs.find((l) => l.recentFoodId === recentFoodId);
+      const recentLogs: RecentFoodLogEntry[] = existing
+        ? s.today.recentLogs.map((l) =>
+            l.recentFoodId === recentFoodId
+              ? { ...l, loggedQuantity: l.loggedQuantity + clamped, mapped: l.mapped || hasContribution }
+              : l
+          )
+        : [...s.today.recentLogs, { recentFoodId: recentFoodId!, loggedQuantity: clamped, mapped: hasContribution }];
+      return { ...s, today: { ...s.today, recentLogs } };
+    });
+
+    const currentEntry = stateRef.current.today.recentLogs.find((l) => l.recentFoodId === recentFoodId);
+    const nextQuantity = (currentEntry?.loggedQuantity ?? 0) + clamped;
+    const nextMapped = (currentEntry?.mapped ?? false) || hasContribution;
+    supabase
+      .from("recent_food_logs")
+      .upsert(
+        { user_id: user.id, date, recent_food_id: recentFoodId, logged_quantity: nextQuantity, mapped: nextMapped },
+        { onConflict: "user_id,date,recent_food_id" }
+      )
+      .then(({ error }) => {
+        if (error) console.error("logRecentFood (log entry) failed", error.message);
+      });
+
+    // Case 3: credit any matching Diet items this dish's ingredients cover.
+    // Uses creditContribution (not addQuantity) so the Dashboard's Today's
+    // Consumption view can tell this was ingredient-credit, not a direct
+    // log, and avoid showing e.g. "Rice" separately from "Chicken Biryani".
+    if (input.dietContributions) {
+      for (const c of input.dietContributions) {
+        if (c.foodId && c.quantity) creditContribution(c.foodId, c.quantity);
+      }
+    }
+
+    return recentFoodId;
+  }
+
+  // Promotes a Recent Food into the Diet — this is the ONLY way a Recent
+  // Food becomes a recurring Diet item; the AI is never allowed to do this.
+  function moveRecentFoodToDiet(recentFoodId: string, schedule: { activeDays: number[]; dateOnly?: string | null }) {
+    const recentFood = stateRef.current.recentFoods.find((f) => f.id === recentFoodId);
+    if (!recentFood) return;
+    addFood({
+      name: recentFood.name,
+      emoji: recentFood.emoji,
+      targetQuantity: recentFood.targetQuantity,
+      unit: recentFood.unit,
+      calories: recentFood.calories,
+      protein: recentFood.protein,
+      carbs: recentFood.carbs,
+      fats: recentFood.fats,
+      aliases: recentFood.aliases,
+      archived: false,
+      kind: recentFood.kind,
+      activeDays: schedule.activeDays,
+      dateOnly: schedule.dateOnly ?? null,
+      category: recentFood.category,
+      customCategory: recentFood.customCategory,
+      baseIngredient: recentFood.baseIngredient,
+    });
+  }
+
+  function deleteRecentFood(id: string) {
+    setState((s) => ({
+      ...s,
+      recentFoods: s.recentFoods.filter((f) => f.id !== id),
+      today: { ...s.today, recentLogs: s.today.recentLogs.filter((l) => l.recentFoodId !== id) },
+      history: s.history.map((d) => ({ ...d, recentLogs: d.recentLogs.filter((l) => l.recentFoodId !== id) })),
+    }));
+    if (!supabase || !user) return;
+    supabase
+      .from("recent_foods")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .then(({ error }) => {
+        if (error) console.error("deleteRecentFood failed", error.message);
+      });
   }
 
   // ── Milestones (Phase 3) ────────────────────────────────────────────
@@ -684,7 +917,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...state,
       updateSettings,
       addFood,
-      createAndLogFood,
       updateFood,
       archiveFood,
       deleteFood,
@@ -699,6 +931,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       deleteCombo,
       logCombo,
       recordMilestone,
+      logRecentFood,
+      moveRecentFoodToDiet,
+      deleteRecentFood,
       ready,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

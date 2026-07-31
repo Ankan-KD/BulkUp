@@ -28,7 +28,7 @@ export function FoodChecklistItem({
       <button
         onClick={() => toggleBinary(food.id)}
         className={cn(
-          "w-full flex items-center gap-3 rounded-xl2 border border-l-[3px] px-4 py-3.5 shadow-soft transition-all duration-150 active:scale-[0.98] text-left",
+          "w-full flex items-center gap-3 rounded-xl2 border border-l-[3px] px-4 py-1.5 shadow-soft transition-all duration-150 active:scale-[0.98] text-left",
           style.accentBorder,
           done
             ? "bg-emerald-500/[0.07] border-emerald-500/40 dark:bg-emerald-400/10"
@@ -36,7 +36,7 @@ export function FoodChecklistItem({
         )}
       >
         <Checkbox done={done} />
-        <FoodIcon iconKey={food.emoji} category={food.category} />
+        <FoodIcon iconKey={food.emoji} category={food.category} size="xl" variant="plain" />
         <span className={cn("flex-1 font-medium text-[15px]", done && "line-through decoration-2 text-[var(--text-muted)]")}>
           {food.name}
         </span>
@@ -50,7 +50,7 @@ export function FoodChecklistItem({
   return (
     <div
       className={cn(
-        "rounded-xl2 border border-l-[3px] px-4 py-3.5 shadow-soft transition-colors duration-150",
+        "rounded-xl2 border border-l-[3px] px-4 py-1.5 shadow-soft transition-colors duration-150",
         style.accentBorder,
         done ? "bg-emerald-500/[0.07] border-emerald-500/40 dark:bg-emerald-400/10" : cn("glass-panel border-[var(--border)]", style.cardTint)
       )}
@@ -60,7 +60,7 @@ export function FoodChecklistItem({
         className="w-full flex items-center gap-3 text-left"
       >
         <Checkbox done={done} progress={progress} />
-        <FoodIcon iconKey={food.emoji} category={food.category} />
+        <FoodIcon iconKey={food.emoji} category={food.category} size="xl" variant="plain" />
         <span className={cn("flex-1 font-medium text-[15px]", done && "text-[var(--text)]")}>
           {food.name}
         </span>
@@ -70,7 +70,7 @@ export function FoodChecklistItem({
       </button>
 
       {expanded && (
-        <div className="mt-3 pt-3 border-t border-[var(--border)] animate-grow-in">
+        <div className="mt-3 pt-3 pb-2 border-t border-[var(--border)] animate-grow-in">
           <div className="flex items-center justify-between gap-3 mb-3">
             <button
               onClick={() => logQuantity(food.id, Math.max(0, loggedQuantity - step))}

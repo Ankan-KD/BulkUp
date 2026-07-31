@@ -39,6 +39,7 @@ CREATE TABLE foods (
     archived BOOLEAN,
     kind TEXT,
     active_days SMALLINT[],
+    active_date DATE,
     category TEXT,
     custom_category TEXT,
     base_ingredient TEXT,
@@ -57,6 +58,7 @@ CREATE TABLE day_logs (
     date DATE NOT NULL,
     food_id UUID NOT NULL,
     logged_quantity NUMERIC,
+    contributed_quantity NUMERIC, -- portion of logged_quantity credited via a Recent Food's ingredients, not a direct checklist tap
     updated_at TIMESTAMP,
 
     PRIMARY KEY (id),
@@ -101,12 +103,65 @@ CREATE TABLE weight_entries (
         REFERENCES users(id)
 );
 
+-- Recent Foods (Food System Redesign) — foods eaten that are NOT part of
+-- the Diet. `recent_foods` is the reusable catalog entry, `recent_food_logs`
+-- is the per-day history of eating it. Neither ever touches `foods`/
+-- `day_logs` (the Diet + Today's Checklist tables) unless the user
+-- explicitly moves an item into the Diet.
+CREATE TABLE recent_foods (
+    id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    emoji TEXT NOT NULL,
+    target_quantity NUMERIC NOT NULL,
+    unit TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    calories NUMERIC NOT NULL,
+    protein NUMERIC NOT NULL,
+    carbs NUMERIC NOT NULL,
+    fats NUMERIC NOT NULL,
+    aliases TEXT[],
+    category TEXT,
+    custom_category TEXT,
+    base_ingredient TEXT,
+    created_at TIMESTAMP,
+
+    PRIMARY KEY (id),
+
+    CONSTRAINT fk_recent_foods_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+);
+
+CREATE TABLE recent_food_logs (
+    id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    date DATE NOT NULL,
+    recent_food_id UUID NOT NULL,
+    logged_quantity NUMERIC,
+    mapped BOOLEAN, -- true if this entry's log carried Diet contributions (a composite dish crediting Diet ingredients)
+    created_at TIMESTAMP,
+
+    PRIMARY KEY (id),
+
+    CONSTRAINT uq_recent_food_logs
+        UNIQUE (user_id, date, recent_food_id),
+
+    CONSTRAINT fk_recent_food_logs_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id),
+
+    CONSTRAINT fk_recent_food_logs_recent_food
+        FOREIGN KEY (recent_food_id)
+        REFERENCES recent_foods(id)
+);
+
 CREATE TABLE meal_combos (
     id UUID NOT NULL,
     user_id UUID NOT NULL,
     name TEXT NOT NULL,
     icon TEXT,
-    items JSON,
+    items JSON, -- each item references EITHER a foods(id) OR a recent_foods(id), plus quantity
     sort_order INTEGER,
     created_at TIMESTAMP,
 

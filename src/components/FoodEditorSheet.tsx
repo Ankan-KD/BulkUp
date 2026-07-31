@@ -6,6 +6,7 @@ import { Button } from "./ui/button";
 import { useStore } from "@/lib/store";
 import { FoodTemplate, Unit, FoodKind, FoodCategory } from "@/lib/types";
 import { FOOD_ICON_OPTIONS, CATEGORY_ICON_KEYS, AppIcon, FoodIcon, getCategoryStyle } from "@/lib/icons";
+import { Database } from "lucide-react";
 
 const UNIT_OPTIONS: Unit[] = ["g", "ml", "count", "serving"];
 const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -23,7 +24,7 @@ const CATEGORY_OPTIONS: { value: FoodCategory; label: string }[] = [
   { value: "custom", label: "Custom" },
 ];
 
-const empty: Omit<FoodTemplate, "id" | "sortOrder"> = {
+const emptyBase: Omit<FoodTemplate, "id" | "sortOrder"> = {
   name: "",
   emoji: "Egg",
   targetQuantity: 1,
@@ -39,27 +40,36 @@ const empty: Omit<FoodTemplate, "id" | "sortOrder"> = {
   baseIngredient: "",
   kind: "quantity",
   activeDays: ALL_DAYS,
+  dateOnly: null, // Diet items are always recurring — a one-off belongs in Recent Foods instead
 };
 
 export function FoodEditorSheet({
   food,
+  initial,
   open,
   onClose,
 }: {
   food: FoodTemplate | null;
+  // Optional prefill (from the master database picker) used only when
+  // creating a brand-new food. Every value here is just a starting point —
+  // the user can change anything before saving, and what gets saved is
+  // always their own food, never a write to the master database.
+  initial?: Partial<FoodTemplate> | null;
   open: boolean;
   onClose: () => void;
 }) {
   const { addFood, updateFood } = useStore();
-  const [form, setForm] = useState(empty);
+  const [form, setForm] = useState(emptyBase);
 
   useEffect(() => {
     if (food) {
       setForm(food);
     } else {
-      setForm(empty);
+      // Diet items are always recurring — a one-off belongs in Recent
+      // Foods instead, not here.
+      setForm({ ...emptyBase, ...(initial ?? {}), activeDays: ALL_DAYS, dateOnly: null });
     }
-  }, [food, open]);
+  }, [food, initial, open]);
 
   function save() {
     if (!form.name.trim()) return;
@@ -74,6 +84,15 @@ export function FoodEditorSheet({
   return (
     <Sheet open={open} onClose={onClose} title={food ? "Edit food" : "Add food"}>
       <div className="space-y-4">
+        {!food && initial && (
+          <div className="flex items-start gap-2 rounded-xl bg-nova-500/10 px-3 py-2.5 text-xs text-[var(--text-muted)]">
+            <Database className="w-3.5 h-3.5 mt-0.5 shrink-0 text-nova-500" />
+            <span>
+              Values pulled from the food database — change anything you like. It&apos;ll save just for you, not the
+              shared database.
+            </span>
+          </div>
+        )}
         <div>
           <span className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">Icon</span>
           <div className="flex gap-2 flex-wrap">
@@ -84,8 +103,10 @@ export function FoodEditorSheet({
                 title={opt.label}
                 aria-label={opt.label}
                 onClick={() => setForm((f) => ({ ...f, emoji: opt.key }))}
-                className={`rounded-xl transition-shadow ${
-                  form.emoji === opt.key ? "ring-2 ring-offset-2 ring-offset-[var(--bg-elevated)] ring-nova-500" : ""
+                className={`h-11 w-11 flex items-center justify-center rounded-xl border transition-colors ${
+                  form.emoji === opt.key
+                    ? "border-nova-500 ring-2 ring-offset-2 ring-offset-[var(--bg-elevated)] ring-nova-500"
+                    : "border-[var(--border)]"
                 }`}
               >
                 <FoodIcon iconKey={opt.key} category={form.category} size="lg" />
@@ -252,20 +273,28 @@ export function FoodEditorSheet({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setForm((f) => ({ ...f, activeDays: ALL_DAYS }))}
+                onClick={() => setForm((f) => ({ ...f, dateOnly: null, activeDays: ALL_DAYS }))}
                 className="text-[11px] font-medium text-nova-400"
               >
                 Every day
               </button>
               <button
                 type="button"
-                onClick={() => setForm((f) => ({ ...f, activeDays: [1, 2, 3, 4, 5] }))}
+                onClick={() => setForm((f) => ({ ...f, dateOnly: null, activeDays: [1, 2, 3, 4, 5] }))}
                 className="text-[11px] font-medium text-nova-400"
               >
                 Weekdays
               </button>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, dateOnly: null, activeDays: [0, 6] }))}
+                className="text-[11px] font-medium text-nova-400"
+              >
+                Weekends
+              </button>
             </div>
           </div>
+
           <div className="flex gap-1.5">
             {DAY_LABELS.map((label, i) => {
               const selected = form.activeDays.includes(i);
@@ -289,6 +318,7 @@ export function FoodEditorSheet({
               );
             })}
           </div>
+
           {form.activeDays.length === 0 && (
             <p className="text-[11px] text-ember-400 mt-1.5">Pick at least one day, or it will never show up.</p>
           )}

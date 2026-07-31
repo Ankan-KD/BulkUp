@@ -48,7 +48,7 @@ export function computeWeeklySummary(
   for (const d of [...history, today]) byDate.set(d.date, d);
 
   const last7Dates = Array.from({ length: 7 }, (_, i) => isoDaysAgo(6 - i)); // oldest → today
-  const days = last7Dates.map((date) => byDate.get(date) ?? { date, logs: [], waterMl: 0 });
+  const days = last7Dates.map((date) => byDate.get(date) ?? { date, logs: [], recentLogs: [], waterMl: 0 });
 
   let sumCalories = 0;
   let sumProtein = 0;

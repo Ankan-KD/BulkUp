@@ -28,7 +28,7 @@ export async function fetchDayRecordsForRange(
   function dayFor(date: string): DayRecord {
     let d = byDate.get(date);
     if (!d) {
-      d = { date, logs: [], waterMl: 0 };
+      d = { date, logs: [], recentLogs: [], waterMl: 0 };
       byDate.set(date, d);
     }
     return d;

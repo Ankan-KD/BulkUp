@@ -19,7 +19,7 @@ const GOAL_ICONS: Record<GoalMode, typeof TrendingUp> = {
   maintain: Equal,
 };
 
-const SUGGESTIONS: Array<Omit<FoodTemplate, "id" | "sortOrder" | "archived" | "activeDays" | "category" | "customCategory" | "baseIngredient">> = [
+const SUGGESTIONS: Array<Omit<FoodTemplate, "id" | "sortOrder" | "archived" | "activeDays" | "dateOnly" | "category" | "customCategory" | "baseIngredient">> = [
   { name: "Eggs", emoji: "Egg", targetQuantity: 4, unit: "count", calories: 70, protein: 6, carbs: 0.5, fats: 5, aliases: ["egg"], kind: "quantity" },
   { name: "Milk", emoji: "Milk", targetQuantity: 500, unit: "ml", calories: 0.62, protein: 0.034, carbs: 0.05, fats: 0.033, aliases: [], kind: "quantity" },
   { name: "Chicken", emoji: "Drumstick", targetQuantity: 300, unit: "g", calories: 1.65, protein: 0.31, carbs: 0, fats: 0.036, aliases: ["chicken breast"], kind: "quantity" },
@@ -96,6 +96,7 @@ export default function OnboardingPage() {
           ...s,
           archived: false,
           activeDays: [0, 1, 2, 3, 4, 5, 6],
+          dateOnly: null,
           category: SUGGESTION_CATEGORY[s.name] ?? "other",
           customCategory: "",
           baseIngredient: SUGGESTION_BASE_INGREDIENT[s.name] ?? s.name.toLowerCase(),

@@ -59,6 +59,22 @@ export function dayOfWeekFromISO(iso: string): number {
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 
+/**
+ * Whether a food should appear in the checklist on a given calendar date.
+ * A one-off food (`dateOnly` set) shows up ONLY on that exact date, no
+ * matter what `activeDays` says. A recurring food (`dateOnly` null) shows
+ * up on any date whose weekday is in `activeDays`. Use this everywhere
+ * "is this food scheduled today" is asked, instead of checking
+ * `activeDays` directly, so one-off vs recurring stays consistent.
+ */
+export function isFoodScheduledOn(
+  food: { dateOnly?: string | null; activeDays: number[] },
+  dateISO: string
+): boolean {
+  if (food.dateOnly) return food.dateOnly === dateISO;
+  return food.activeDays.includes(dayOfWeekFromISO(dateISO));
+}
+
 export function formatDateLabel(iso: string) {
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric" });

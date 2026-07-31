@@ -1,4 +1,5 @@
 import { FoodTemplate, GoalMode } from "@/lib/types";
+import { fetchGeminiWithRetry, GEMINI_MODEL } from "@/lib/geminiRetry";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -129,7 +130,7 @@ async function callGemini(
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
-  const model = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+  const model = GEMINI_MODEL;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const contents = messages.map((m) => ({
@@ -147,7 +148,7 @@ async function callGemini(
     },
   };
 
-  const res = await fetch(url, {
+  const res = await fetchGeminiWithRetry(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
