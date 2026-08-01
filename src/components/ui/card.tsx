@@ -30,7 +30,7 @@ export function Card({
     <div
       className={cn(
         "rounded-2xl border shadow-soft",
-        tint === "none" ? "glass-panel" : CARD_TINTS[tint],
+        tint === "none" ? "glass-panel" : cn("bg-[var(--bg-elevated)]", CARD_TINTS[tint]),
         className
       )}
       {...props}

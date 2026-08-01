@@ -162,7 +162,7 @@ const RESPONSE_SCHEMA = {
             },
           },
         },
-        required: ["type"],
+        required: ["type", "calories", "protein", "carbs", "fats"],
       },
     },
   },
@@ -239,6 +239,7 @@ General rules:
 - Never invent a Diet action — "log_diet" is ONLY for foods that are already literally in the Diet list below. You are never allowed to create, edit, or schedule a Diet item, no matter how the user phrases their request (even "add rice to my everyday diet" — for that, tell the user in your reply to use the + button in Foods, or move a Recent Food into the Diet themselves).
 - A single message can produce multiple actions, but ONLY one action per distinct dish/food the user actually named — e.g. "eggs and biryani" → exactly one log_diet for eggs, exactly one log_recent for biryani (never more than one action for "biryani" itself).
 - CRITICAL — Case 3 is always ONE action, never several: when a dish's ingredients credit Diet items, that credit MUST be the "dietContributions" array inside that dish's single "log_recent" action. NEVER emit a separate "log_diet" action, and NEVER emit additional "log_recent" actions, to represent an ingredient that's merely implied by a dish (e.g. crediting Rice/Chicken/Egg for "biryani" is three entries inside ONE log_recent's dietContributions — it is never three extra actions, and it is never three extra chips). A standalone "log_diet" action is ONLY correct when the user named that exact Diet item on its own as its own food (Case 1) — not when it's your own inference about what a dish contains.
+- Every action's JSON (even "log_diet") must include numeric "calories", "protein", "carbs", and "fats" fields because the schema requires them — for "log_diet" these are ignored by the app (it already knows that Diet item's nutrition), so just restate that Diet item's own values scaled to quantityConsumed; don't leave them out or set them to 0.
 - Every "log_recent" action MUST have either a "name" (new entry) or a "recentFoodId" (reusing an existing catalog entry) — never emit a "log_recent" action with neither, and never use a placeholder/generic name like "Food" or "Meal".
 - If the user mentions multiple unrelated foods, handle each with its own case — but "unrelated" means textually different dishes, not the ingredients of one dish.
 - Don't let a dish being "basically just one Diet ingredient" push you toward Case 1 or Case 2 instead of Case 3 — the deciding question is always "is the user describing eating this Diet item directly/by its own name (Case 1), or a dish/preparation that's made from it (Case 3)?" Both "I ate eggs" (Case 1) and "I had an omelette" (Case 3, crediting Eggs) are common and both must work.
@@ -408,7 +409,7 @@ function validateChatResult(result: ChatResult, foods: FoodTemplate[]): ChatResu
   const MAX_LOG_DIET_PER_TURN = 4;
   let logDietCount = 0;
   for (const rawAction of result.actions) {
-    const action = rawAction.type === "log_recent" ? normalizeLogRecentAction(rawAction) : rawAction;
+    const action = rawAction.type === "log_recent" ? normalizeLogRecentAction(rawAction) : { ...rawAction };
     if (action.type === "log_diet") {
       if (!(action.foodId && validIds.has(action.foodId))) {
         console.warn(
@@ -450,15 +451,29 @@ function validateChatResult(result: ChatResult, foods: FoodTemplate[]): ChatResu
     // so a model response that simply omitted them (schema-valid, since
     // they aren't in `required`) used to fall through to `?? 0` downstream
     // and silently log a phantom zero-nutrition food. A real food is never
-    // actually 0 kcal, so treat this as a failed estimate and drop it
-    // rather than logging garbage.
+    // actually 0 kcal, so treat this as a failed estimate — but before
+    // giving up entirely, try to recover real figures from the Master Food
+    // Database (the same reference the prompt already offers the model)
+    // rather than discarding a perfectly identifiable food just because
+    // this particular generation skipped the numbers.
     if (!hasUsableRecentId && !(typeof action.calories === "number" && action.calories > 0)) {
-      console.warn(
-        `[food-chat] Dropping new log_recent action for "${action.name}" — model returned no usable calories (got ${JSON.stringify(
-          action.calories
-        )}), refusing to log a 0-kcal ghost entry.`
-      );
-      continue;
+      const rescue = findBestMasterFoodMatch(action.name ?? "");
+      if (rescue) {
+        console.warn(
+          `[food-chat] Model omitted calories for "${action.name}" — recovered nutrition from Master Food Database match "${rescue.name}" instead of dropping the entry.`
+        );
+        action.calories = rescue.calories;
+        action.protein = rescue.protein;
+        action.carbs = rescue.carbs;
+        action.fats = rescue.fat;
+      } else {
+        console.warn(
+          `[food-chat] Dropping new log_recent action for "${action.name}" — model returned no usable calories (got ${JSON.stringify(
+            action.calories
+          )}), refusing to log a 0-kcal ghost entry.`
+        );
+        continue;
+      }
     }
 
     // For each dietContribution: if the returned foodId matches a real Diet item,

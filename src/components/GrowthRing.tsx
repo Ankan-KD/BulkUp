@@ -52,6 +52,7 @@ export function GrowthRing({
         <defs>
           <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="var(--ring-grad-start, #3b82f6)" />
+            <stop offset="50%" stopColor="var(--ring-grad-mid, #5f70ea)" />
             <stop offset="100%" stopColor="var(--ring-grad-end, #7c5cf0)" />
           </linearGradient>
           <linearGradient id="ringGradientWarning" x1="0%" y1="0%" x2="100%" y2="100%">

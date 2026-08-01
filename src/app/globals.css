@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ══════════════════════════════════════════════════════════════════════
+   ROOT — shared, theme-agnostic rules
+   Nothing in this block is colour/theme-specific. Every theme (light,
+   dark, princess) gets its own dedicated section further down; this part
+   only holds structural resets and cross-theme plumbing.
+   ══════════════════════════════════════════════════════════════════════ */
+
 /* Hide the native up/down spinner on <input type="number"> used by EditableNumber */
 .no-spinner::-webkit-outer-spin-button,
 .no-spinner::-webkit-inner-spin-button {
@@ -12,47 +19,26 @@
   -moz-appearance: textfield;
 }
 
-:root {
-  --bg: #f6f5fb;
-  --bg-elevated: #ffffff;
-  --text: #191631;
-  --text-muted: #6a6690;
-  --border: #e6e2f5;
-  --nebula-1: rgba(124, 92, 240, 0.07);
-  --nebula-2: rgba(46, 207, 221, 0.06);
-  --ring-grad-start: #3b82f6;
-  --ring-grad-end: #7c5cf0;
-  --ring-glow: rgba(59, 130, 246, 0.35);
+html {
+  -webkit-tap-highlight-color: transparent;
 }
 
-.dark {
-  --bg: #08090f;
-  --bg-elevated: #13142a;
-  --text: #eceafc;
-  --text-muted: #9793c2;
-  --border: rgba(255, 255, 255, 0.08);
-  --nebula-1: rgba(124, 92, 240, 0.16);
-  --nebula-2: rgba(46, 207, 221, 0.10);
-  --ring-grad-start: #60a5fa;
-  --ring-grad-end: #7c5cf0;
-  --ring-glow: rgba(96, 165, 250, 0.35);
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  position: relative;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* ── Princess mode: soft pink, sparkly, super cute ────────────────────── */
-.princess {
-  --bg: #fff3fa;
-  --bg-elevated: #fcefefa1;
-  --text: #6d0048;
-  --text-muted: #9c1379;
-  --border: #ffd6ec;
-  --nebula-1: rgba(244, 66, 158, 0.12);
-  --nebula-2: rgba(187, 102, 251, 0.10);
-  --ring-grad-start: #ff6fb8;
-  --ring-grad-end: #fa0068fa;
-  --ring-glow: rgba(255, 47, 154, 0.5);
+/* Real background for the bottom nav — bg-[var(--bg-elevated)]/90 in
+   BottomNav.tsx doesn't compile (Tailwind can't apply an opacity modifier
+   to a hex-string CSS var), so the nav had no background at all. */
+nav[aria-label="Primary"] {
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
 }
 
-/* ── App icon: one SVG per theme, swapped via the theme class on <html> ── */
+/* App icon: one SVG per theme, swapped via the theme class on <html> */
 .app-icon .app-icon-light {
   display: block;
 }
@@ -75,27 +61,133 @@
   display: none;
 }
 
-html {
-  -webkit-tap-highlight-color: transparent;
+@supports (font-variation-settings: normal) {
+  html {
+    font-optical-sizing: auto;
+  }
 }
 
-/* Real background for the bottom nav — bg-[var(--bg-elevated)]/90 in
-   BottomNav.tsx doesn't compile (Tailwind can't apply an opacity modifier
-   to a hex-string CSS var), so the nav had no background at all. */
-nav[aria-label="Primary"] {
-  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-body {
-  background-color: var(--bg);
-  color: var(--text);
-  min-height: 100dvh;
-  position: relative;
+/* Focus visibility for accessibility — colour tuned per theme below */
+:focus-visible {
+  outline: 2px solid var(--focus-ring, rgba(124, 92, 240, 0.55));
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
-/* Lightweight cosmic backdrop: a couple of blurred radial gradients plus a
-   cheap repeating star pattern. Pure CSS, fixed position, no canvas/JS —
-   stays smooth on low-end mobiles. */
+/* Reusable glass-card look — base structure only; each theme fills in its
+   own background/blur/shadow further down. */
+.glass-panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.text-glow-nova {
+  text-shadow: 0 0 18px var(--glow-nova, rgba(124, 92, 240, 0.55));
+}
+.text-glow-aurora {
+  text-shadow: 0 0 18px var(--glow-aurora, rgba(46, 207, 221, 0.5));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   LIGHT THEME (default — no class on <html>)
+   Clean, airy, violet/indigo accent. This section is self-contained: its
+   own tokens, its own nova/aurora/ember/void palette, its own backdrop.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --bg: #f6f5fb;
+  --bg-elevated: #ffffff;
+  --text: #191631;
+  --text-muted: #6a6690;
+  --border: #e6e2f5;
+  --nebula-1: rgba(124, 92, 240, 0.07);
+  --nebula-2: rgba(46, 207, 221, 0.06);
+
+  /* Growth ring gradient — blue into violet */
+  --ring-grad-start: #3b82f6;
+  --ring-grad-mid: #5f70ea;
+  --ring-grad-end: #7c5cf0;
+  --ring-glow: rgba(59, 130, 246, 0.35);
+
+  --focus-ring: rgba(124, 92, 240, 0.55);
+  --glow-nova: rgba(124, 92, 240, 0.55);
+  --glow-aurora: rgba(46, 207, 221, 0.5);
+  --scrollbar-thumb: rgba(124, 92, 240, 0.3);
+
+  /* nova — primary cosmic accent (violet/indigo) */
+  --c-nova-50: 242 239 255;
+  --c-nova-100: 228 222 254;
+  --c-nova-200: 201 189 253;
+  --c-nova-300: 168 146 250;
+  --c-nova-400: 138 108 245;
+  --c-nova-500: 124 92 240;
+  --c-nova-600: 109 67 232;
+  --c-nova-700: 90 50 201;
+  --c-nova-800: 74 42 160;
+  --c-nova-900: 58 35 120;
+  --c-nova-950: 34 22 80;
+
+  /* aurora — secondary cosmic accent (cyan/teal) */
+  --c-aurora-50: 233 253 253;
+  --c-aurora-100: 201 249 250;
+  --c-aurora-200: 152 240 244;
+  --c-aurora-300: 95 225 234;
+  --c-aurora-400: 46 207 221;
+  --c-aurora-500: 23 182 199;
+  --c-aurora-600: 17 148 163;
+  --c-aurora-700: 18 118 132;
+  --c-aurora-800: 21 95 106;
+  --c-aurora-900: 21 79 89;
+  --c-aurora-950: 8 51 59;
+
+  /* ember — warm accent for calories / streaks */
+  --c-ember-50: 255 243 236;
+  --c-ember-100: 255 226 207;
+  --c-ember-200: 255 193 153;
+  --c-ember-300: 255 157 97;
+  --c-ember-400: 252 124 60;
+  --c-ember-500: 245 96 31;
+  --c-ember-600: 221 70 20;
+  --c-ember-700: 183 53 18;
+  --c-ember-800: 145 44 20;
+  --c-ember-900: 118 39 18;
+
+  /* void — deep neutrals for scrims/overlays */
+  --c-void-50: 238 240 248;
+  --c-void-100: 214 219 236;
+  --c-void-200: 169 177 210;
+  --c-void-300: 121 130 171;
+  --c-void-400: 76 84 128;
+  --c-void-500: 51 58 99;
+  --c-void-600: 36 42 77;
+  --c-void-700: 25 29 58;
+  --c-void-800: 18 21 44;
+  --c-void-900: 11 13 30;
+  --c-void-950: 5 6 20;
+}
+
+/* Cosmic backdrop: a couple of blurred radial gradients, pure CSS. */
 body::before {
   content: "";
   position: fixed;
@@ -108,36 +200,140 @@ body::before {
     radial-gradient(ellipse 60% 50% at 50% 100%, var(--nebula-1), transparent 65%);
 }
 
-/* Scattered hearts, sparkles & stars doodled across the princess backdrop.
-   Same lightweight technique as the dark-mode starfield: fixed, pure CSS,
-   no canvas/JS. */
-   .princess::after {
-    content: "";
-    position: fixed;
-    inset: -20px;
-    z-index: -2;
-    pointer-events: none;
-  
-    background-image: url("/princess-bg.jpg");
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-  
-    filter: blur(3px);
-    transform: scale(1.1);
-  }
-  
-  .princess::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-  
-    background: rgba(199, 163, 194, 0.61);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(8px);
-  }
+/* Light mode photo backdrop, tinted so cards stay readable on top of it. */
+html:not(.dark):not(.princess)::after {
+  content: "";
+  position: fixed;
+  inset: -20px;
+  z-index: -3;
+  pointer-events: none;
+
+  background-image: url("/Light_Mobile.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  filter: blur(2px);
+  transform: scale(1.08);
+  opacity: 0.45;
+}
+html:not(.dark):not(.princess)::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   DARK THEME
+   Near-black cosmic backdrop, brighter versions of the same accents so
+   they still glow against a dark surface. Fully self-contained.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.dark {
+  --bg: #08090f;
+  --bg-elevated: #13142a;
+  --text: #eceafc;
+  --text-muted: #9793c2;
+  --border: rgba(255, 255, 255, 0.08);
+  --nebula-1: rgba(124, 92, 240, 0.16);
+  --nebula-2: rgba(46, 207, 221, 0.10);
+
+  /* Growth ring gradient — brighter blue into violet, tuned to glow on black */
+/* Frozen Neon */
+--ring-grad-start: #b7f0ff;
+--ring-grad-mid:   #5da9ff;
+--ring-grad-end:   #7758ff;
+--ring-glow: rgba(93, 169, 255, 0.45);
+
+  --focus-ring: rgba(160, 140, 250, 0.6);
+  --glow-nova: rgba(138, 108, 245, 0.6);
+  --glow-aurora: rgba(46, 207, 221, 0.55);
+  --scrollbar-thumb: rgba(138, 108, 245, 0.35);
+
+  /* nova — same hue family as light, kept identical here on purpose: the
+     component-level dark: utility variants (e.g. text-nova-600
+     dark:text-nova-300) already pick a different *shade* for dark
+     surfaces, so the scale itself doesn't need to move. */
+  --c-nova-50: 242 239 255;
+  --c-nova-100: 228 222 254;
+  --c-nova-200: 201 189 253;
+  --c-nova-300: 168 146 250;
+  --c-nova-400: 138 108 245;
+  --c-nova-500: 124 92 240;
+  --c-nova-600: 109 67 232;
+  --c-nova-700: 90 50 201;
+  --c-nova-800: 74 42 160;
+  --c-nova-900: 58 35 120;
+  --c-nova-950: 34 22 80;
+
+  /* aurora */
+  --c-aurora-50: 233 253 253;
+  --c-aurora-100: 201 249 250;
+  --c-aurora-200: 152 240 244;
+  --c-aurora-300: 95 225 234;
+  --c-aurora-400: 46 207 221;
+  --c-aurora-500: 23 182 199;
+  --c-aurora-600: 17 148 163;
+  --c-aurora-700: 18 118 132;
+  --c-aurora-800: 21 95 106;
+  --c-aurora-900: 21 79 89;
+  --c-aurora-950: 8 51 59;
+
+  /* ember */
+  --c-ember-50: 255 243 236;
+  --c-ember-100: 255 226 207;
+  --c-ember-200: 255 193 153;
+  --c-ember-300: 255 157 97;
+  --c-ember-400: 252 124 60;
+  --c-ember-500: 245 96 31;
+  --c-ember-600: 221 70 20;
+  --c-ember-700: 183 53 18;
+  --c-ember-800: 145 44 20;
+  --c-ember-900: 118 39 18;
+
+  /* void */
+  --c-void-50: 238 240 248;
+  --c-void-100: 214 219 236;
+  --c-void-200: 169 177 210;
+  --c-void-300: 121 130 171;
+  --c-void-400: 76 84 128;
+  --c-void-500: 51 58 99;
+  --c-void-600: 36 42 77;
+  --c-void-700: 25 29 58;
+  --c-void-800: 18 21 44;
+  --c-void-900: 11 13 30;
+  --c-void-950: 5 6 20;
+}
+
+/* Dark mode photo backdrop — sits behind the nebula + starfield layers. */
+.dark::after {
+  content: "";
+  position: fixed;
+  inset: -20px;
+  z-index: -3;
+  pointer-events: none;
+
+  background-image: url("/Dark_Mobile.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  filter: blur(3px) brightness(0.55);
+  transform: scale(1.08);
+  opacity: 0.7;
+}
 
 .dark body::after {
   content: "";
@@ -158,52 +354,9 @@ body::before {
   background-size: 100% 100%;
 }
 
-@supports (font-variation-settings: normal) {
-  html {
-    font-optical-sizing: auto;
-  }
-}
-
-/* Custom scrollbar, subtle */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(124, 92, 240, 0.3);
-  border-radius: 999px;
-}
-.princess ::-webkit-scrollbar-thumb {
-  background: rgba(244, 66, 158, 0.35);
-}
-
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* Focus visibility for accessibility */
-:focus-visible {
-  outline: 2px solid rgba(124, 92, 240, 0.55);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
-
-/* Reusable glass-card look for the dark cosmic theme */
-.glass-panel {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-}
 .dark .glass-panel {
   background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
   backdrop-filter: blur(14px);
-}
-.princess .glass-panel {
-  background: linear-gradient(160deg, rgba(237, 184, 241, 0.637), rgba(255,240,250,0.65));
-  box-shadow: 0 2px 14px -4px rgba(244, 66, 158, 0.18);
 }
 
 /* Dark mode needs its own elevation cue since a black drop-shadow is
@@ -214,109 +367,174 @@ body::before {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045), 0 4px 16px -6px rgba(0, 0, 0, 0.45);
 }
 
-.text-glow-nova {
-  text-shadow: 0 0 18px rgba(124, 92, 240, 0.55);
-}
-.text-glow-aurora {
-  text-shadow: 0 0 18px rgba(46, 207, 221, 0.5);
-}
-.princess .text-glow-nova {
-  text-shadow: 0 0 18px rgba(244, 66, 158, 0.5);
-}
-.princess .text-glow-aurora {
-  text-shadow: 0 0 18px rgba(187, 102, 251, 0.45);
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
 }
 
-/* Softer, warmer card shadows + pink glows to match the princess palette */
+
+/* ══════════════════════════════════════════════════════════════════════
+   PRINCESS THEME
+   Soft, sparkly, unmistakably pink-and-violet — but with its own gold
+   accent kept alive for the dial/stat colour variety, and food cards left
+   alone (they use the fixed per-category palette in categoryStyles.ts,
+   not these tokens, on purpose). Fully self-contained, nothing borrowed
+   from light or dark above.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.princess {
+  --bg: #fff2f8;
+  --bg-elevated: #f3cfe1da;
+  --text: #4a0033;
+  --text-muted: #9c1379;
+  --border: #ffb9dc;
+  --nebula-1: rgba(255, 61, 154, 0.12);
+  --nebula-2: rgba(139, 47, 214, 0.10);
+
+  /* Growth ring gradient — hot pink -> violet -> gold, so the dial reads
+     as a warm sunset rather than a flat pastel wash. */
+     --ring-grad-start: #ff8fd8;
+     --ring-grad-mid:   #ff56b3;
+     --ring-grad-end:   #9b5cff;
+     --ring-glow: rgba(255, 86, 179, 0.45);
+
+  --focus-ring: rgba(255, 61, 154, 0.55);
+  --glow-nova: rgba(255, 61, 154, 0.5);
+  --glow-aurora: rgba(155, 47, 214, 0.45);
+  --scrollbar-thumb: rgba(255, 61, 154, 0.4);
+
+  /* nova — pink, the princess theme's primary accent (buttons, borders,
+     the growth-ring track, icon fills) */
+  --c-nova-50: 255 240 247;
+  --c-nova-100: 255 224 239;
+  --c-nova-200: 255 191 224;
+  --c-nova-300: 255 143 199;
+  --c-nova-400: 255 95 174;
+  --c-nova-500: 255 61 154;
+  --c-nova-600: 226 29 132;
+  --c-nova-700: 179 18 106;
+  --c-nova-800: 138 15 82;
+  --c-nova-900: 107 12 64;
+  --c-nova-950: 61 6 37;
+
+  /* aurora — violet, the princess theme's secondary accent (completion
+     glow, secondary icon fills) */
+  --c-aurora-50: 247 240 255;
+  --c-aurora-100: 236 220 255;
+  --c-aurora-200: 218 184 255;
+  --c-aurora-300: 194 140 245;
+  --c-aurora-400: 162 76 232;
+  --c-aurora-500: 139 47 214;
+  --c-aurora-600: 111 36 168;
+  --c-aurora-700: 90 28 136;
+  --c-aurora-800: 71 21 106;
+  --c-aurora-900: 52 16 78;
+  --c-aurora-950: 32 10 48;
+
+  /* ember — warm gold, kept distinct from nova/aurora on purpose so the
+     dial and stat chips still read as "colourful", not a single pink wash */
+  --c-ember-50: 255 248 236;
+  --c-ember-100: 255 236 199;
+  --c-ember-200: 255 212 138;
+  --c-ember-300: 255 187 84;
+  --c-ember-400: 255 163 46;
+  --c-ember-500: 246 141 22;
+  --c-ember-600: 238 122 18;
+  --c-ember-700: 200 99 13;
+  --c-ember-800: 160 79 11;
+  --c-ember-900: 122 60 8;
+
+  /* void — deep berry/plum instead of cold near-black, for scrims/overlays */
+  --c-void-50: 251 238 247;
+  --c-void-100: 245 217 236;
+  --c-void-200: 231 174 212;
+  --c-void-300: 209 131 184;
+  --c-void-400: 179 90 151;
+  --c-void-500: 143 59 118;
+  --c-void-600: 111 42 92;
+  --c-void-700: 85 32 72;
+  --c-void-800: 61 23 53;
+  --c-void-900: 43 15 38;
+  --c-void-950: 26 9 24;
+}
+
+/* Scattered hearts/sparkles doodled across the princess backdrop photo. */
+.princess::after {
+  content: "";
+  position: fixed;
+  inset: -20px;
+  z-index: -3;
+  pointer-events: none;
+
+  background-image: url("/princess-bg.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  filter: blur(2px) saturate(1.1);
+  transform: scale(1.08);
+  opacity: 0.85;
+}
+
+/* Warm pink -> violet tint over the photo — a touch stronger than a plain
+   wash so foreground text/cards keep contrast without hiding the art. */
+.princess::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+
+  background: linear-gradient(165deg, rgba(255, 235, 246, 0.72), rgba(250, 220, 245, 0.5) 45%, rgba(235, 210, 250, 0.55));
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* Faint gold sparkle flecks, same lightweight technique as dark mode's
+   starfield — this is what gives the princess backdrop its "still
+   colourful, not just flat pink" sparkle. */
+.princess body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 22%, rgba(255, 214, 120, 0.9) 0%, transparent 60%),
+    radial-gradient(1px 1px at 78% 12%, rgba(255, 255, 255, 0.85) 0%, transparent 60%),
+    radial-gradient(2px 2px at 58% 68%, rgba(255, 61, 154, 0.55) 0%, transparent 60%),
+    radial-gradient(1px 1px at 32% 82%, rgba(255, 255, 255, 0.7) 0%, transparent 60%),
+    radial-gradient(1.5px 1.5px at 88% 78%, rgba(200, 130, 255, 0.6) 0%, transparent 60%),
+    radial-gradient(1px 1px at 46% 38%, rgba(255, 214, 120, 0.8) 0%, transparent 60%);
+  background-repeat: repeat;
+  background-size: 100% 100%;
+}
+
+.princess .glass-panel {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.96), rgba(255, 245, 250, 0.9));
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px -6px rgba(179, 18, 106, 0.22), 0 1px 3px rgba(179, 18, 106, 0.1);
+}
+
 .princess .shadow-soft {
-  box-shadow: 0 2px 10px -2px rgba(244, 66, 158, 0.12), 0 1px 2px rgba(244, 66, 158, 0.08);
+  box-shadow: 0 2px 10px -2px rgba(179, 18, 106, 0.16), 0 1px 2px rgba(179, 18, 106, 0.1);
 }
 .princess .shadow-card {
-  box-shadow: 0 8px 30px -6px rgba(244, 66, 158, 0.2);
+  box-shadow: 0 8px 30px -6px rgba(179, 18, 106, 0.22);
 }
 .princess .shadow-glow {
-  box-shadow: 0 0 0 4px rgba(244, 66, 158, 0.16);
+  box-shadow: 0 0 0 4px rgba(255, 61, 154, 0.16);
 }
 .princess .shadow-glow-nova {
-  box-shadow: 0 0 24px -4px rgba(244, 66, 158, 0.55), 0 0 4px rgba(244, 66, 158, 0.4);
+  box-shadow: 0 0 24px -4px rgba(255, 61, 154, 0.55), 0 0 4px rgba(255, 61, 154, 0.4);
 }
 .princess .shadow-glow-aurora {
-  box-shadow: 0 0 24px -4px rgba(187, 102, 251, 0.5), 0 0 4px rgba(187, 102, 251, 0.35);
+  box-shadow: 0 0 24px -4px rgba(139, 47, 214, 0.45), 0 0 4px rgba(139, 47, 214, 0.3);
 }
 .princess .shadow-glow-ember {
-  box-shadow: 0 0 24px -4px rgba(255, 148, 33, 0.45), 0 0 4px rgba(255, 148, 33, 0.3);
+  box-shadow: 0 0 24px -4px rgba(246, 141, 22, 0.45), 0 0 4px rgba(246, 141, 22, 0.3);
 }
 
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+.princess ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
 }
-.princess .bg-aurora-200\/30 { background-color: rgb(228 186 255 / 0.3) !important; }
-.princess .bg-aurora-900\/10 { background-color: rgb(66 23 96 / 0.1) !important; }
-.princess .bg-aurora-900\/20 { background-color: rgb(66 23 96 / 0.2) !important; }
-.princess .bg-ember-500\/10 { background-color: rgb(255 148 33 / 0.1) !important; }
-.princess .bg-ember-600 { background-color: #f27a0f !important; }
-.princess .bg-ember-600\/10 { background-color: rgb(242 122 15 / 0.1) !important; }
-.princess .bg-ember-700 { background-color: #c95f0c !important; }
-.princess .bg-nova-100\/10 { background-color: rgb(255 224 239 / 0.1) !important; }
-.princess .bg-nova-100\/8 { background-color: rgb(255 224 239 / 0.08) !important; }
-.princess .bg-nova-200\/40 { background-color: rgb(255 194 224 / 0.4) !important; }
-.princess .bg-nova-300\/10 { background-color: rgb(255 155 207 / 0.1) !important; }
-.princess .bg-nova-500\/10 { background-color: rgb(244 66 158 / 0.1) !important; }
-.princess .bg-nova-600 { background-color: #e0278a !important; }
-.princess .bg-nova-700 { background-color: #c01870 !important; }
-.princess .bg-nova-700\/10 { background-color: rgba(231, 214, 223, 0.24) !important; }
-.princess .bg-nova-700\/12 { background-color: rgba(192, 24, 111, 0.274) !important; }
-.princess .bg-nova-700\/14 { background-color: rgba(192, 24, 111, 0.24) !important; }
-.princess .bg-nova-700\/15 { background-color: rgba(192, 24, 111, 0.288) !important; }
-.princess .bg-nova-700\/6 { background-color: rgba(192, 24, 111, 0.219) !important; }
-.princess .bg-nova-700\/8 { background-color: rgba(192, 24, 111, 0.199) !important; }
-.princess .bg-nova-900\/20 { background-color: rgba(112, 14, 68, 0.315) !important; }
-.princess .bg-void-950\/60 { background-color: rgba(31, 15, 26, 0.589) !important; }
-.princess .border-ember-500\/40 { border-color: rgb(255 148 33 / 0.4) !important; }
-.princess .border-nova-300 { border-color: #ff9bcf !important; }
-.princess .border-nova-500 { border-color: #f4429e !important; }
-.princess .border-nova-500\/40 { border-color: rgb(244 66 158 / 0.4) !important; }
-.princess .border-nova-600 { border-color: #e0278a !important; }
-.princess .border-nova-700 { border-color: #c01870 !important; }
-.princess .fill-aurora-400 { fill: #bb66fb !important; }
-.princess .fill-nova-100\/10 { fill: rgb(255 224 239 / 0.1) !important; }
-.princess .fill-nova-200 { fill: #ffc2e0 !important; }
-.princess .fill-nova-300 { fill: #ff9bcf !important; }
-.princess .fill-nova-400 { fill: #ff6fb8 !important; }
-.princess .fill-nova-500 { fill: #f4429e !important; }
-.princess .fill-nova-700 { fill: #c01870 !important; }
-.princess .fill-nova-800\/10 { fill: rgb(150 18 90 / 0.1) !important; }
-.princess .from-aurora-300 { --tw-gradient-from: #d190ff !important; --tw-gradient-to: rgb(209 144 255 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
-.princess .from-aurora-400 { --tw-gradient-from: #bb66fb !important; --tw-gradient-to: rgb(187 102 251 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
-.princess .from-aurora-500 { --tw-gradient-from: #a144e8 !important; --tw-gradient-to: rgb(161 68 232 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
-.princess .from-nova-400 { --tw-gradient-from: #ff6fb8 !important; --tw-gradient-to: rgb(255 111 184 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
-.princess .from-nova-500 { --tw-gradient-from: #f4429e !important; --tw-gradient-to: rgb(244 66 158 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
-.princess .from-nova-600 { --tw-gradient-from: #e0278a !important; --tw-gradient-to: rgb(224 39 138 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
-.princess .from-nova-700 { --tw-gradient-from: #c01870 !important; --tw-gradient-to: rgb(192 24 112 / 0) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
-.princess .ring-nova-500 { --tw-ring-color: #f4429e !important; }
-.princess .stroke-nova-100 { stroke: #ffe0ef !important; }
-.princess .stroke-nova-500 { stroke: #f4429e !important; }
-.princess .stroke-nova-900 { stroke: #700e44 !important; }
-.princess .text-aurora-400 { color: #92008b !important; }
-.princess .text-aurora-500 { color: #a144e8 !important; }
-.princess .text-aurora-600 { color: #8a2fce !important; }
-.princess .text-ember-300 { color: #ffc158 !important; }
-.princess .text-ember-400 { color: #ffab3d !important; }
-.princess .text-ember-600 { color: #f27a0f !important; }
-.princess .text-nova-300 { color: #ff9bcf !important; }
-.princess .text-nova-400 { color: #ff6fb8 !important; }
-.princess .text-nova-600 { color: #e0278a !important; }
-.princess .text-nova-700 { color: #c01870 !important; }
-.princess .text-void-950 { color: #1f0f1a !important; }
-.princess .to-aurora-300 { --tw-gradient-to: #d190ff !important; }
-.princess .to-aurora-400 { --tw-gradient-to: #bb66fb !important; }
-.princess .to-aurora-500 { --tw-gradient-to: #a144e8 !important; }
-.princess .to-aurora-600 { --tw-gradient-to: #8a2fce !important; }
-.princess .to-nova-600 { --tw-gradient-to: #e0278a !important; }
-.princess .to-nova-700 { --tw-gradient-to: #c01870 !important; }
-.princess .to-nova-800 { --tw-gradient-to: #96125a !important; }
