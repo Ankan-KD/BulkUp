@@ -96,7 +96,7 @@ type SpeechRecognitionLike = {
 };
 
 export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { foods, recentFoods, addQuantity, logQuantity, logRecentFood, combos, logCombo, settings, today } =
+  const { foods, recentFoods, addQuantity, logQuantity, logRecentFood, combos, logCombo, settings, viewDay } =
     useStore();
   const [tab, setTab] = useState<"describe" | "combos" | "coach">("describe");
   const [comboFeedback, setComboFeedback] = useState<{ comboId: string; skipped: string[] } | null>(null);
@@ -107,9 +107,11 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
   // Today's remaining calories/protein, shared by both the logging chat
   // (so its replies can be coach-flavored) and the dedicated Coach tab.
   // Combined Diet + Recent Foods, since both count toward what was eaten.
+  // Uses viewDay (not necessarily real today) so this reflects whichever
+  // day is currently selected for logging — see LogDateSwitcher.
   const totalsSoFar = useMemo(
-    () => computeCombinedTotals(foods, recentFoods, today),
-    [foods, recentFoods, today]
+    () => computeCombinedTotals(foods, recentFoods, viewDay),
+    [foods, recentFoods, viewDay]
   );
   const coachContext = useMemo(
     () => ({

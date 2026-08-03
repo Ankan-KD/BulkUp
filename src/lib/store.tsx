@@ -242,6 +242,16 @@ interface StoreContextValue extends StoreShape {
   // Clamped into [today - MAX_BACKDATE_DAYS, today] (see utils.ts) so a
   // stale UI value can never write outside the supported window.
   setActiveLogDate: (date: string) => void;
+  // The DayRecord for activeLogDate — "today" when it really is today,
+  // otherwise whatever's already logged for that past day (or a blank day
+  // if nothing has been logged for it yet). Every part of the UI that
+  // displays "what's logged" (checklist state, progress ring, water,
+  // Today's Consumption) should read from THIS, not `today`, so switching
+  // the date is a true time-travel: you see and edit that day's actual
+  // state, not today's. `today` itself stays the real calendar day —
+  // needed as-is by streaks/weekly-summary/milestones, which are about
+  // real calendar continuity and shouldn't shift with the picker.
+  viewDay: DayRecord;
   updateSettings: (patch: Partial<UserSettings>) => void;
   addFood: (food: Omit<FoodTemplate, "id" | "sortOrder">) => void;
   updateFood: (id: string, patch: Partial<FoodTemplate>) => void;
@@ -983,6 +993,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...state,
       activeLogDate,
       setActiveLogDate,
+      viewDay: activeLogDate === todayISO() ? state.today : state.history.find((d) => d.date === activeLogDate) ?? emptyDay(activeLogDate),
       updateSettings,
       addFood,
       updateFood,

@@ -60,6 +60,23 @@ export function dayOfWeekFromISO(iso: string): number {
 }
 
 /**
+ * Human label for an ISO date relative to today: "Today", "Yesterday", or
+ * a short weekday+date ("Wed, Aug 3"). Shared by anywhere the UI needs to
+ * say which day is currently being viewed/logged for.
+ */
+export function relativeDayLabel(date: string): string {
+  const today = todayISO();
+  if (date === today) return "Today";
+  if (date === addDaysISO(today, -1)) return "Yesterday";
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
  * How many days back "Log for a past day" allows picking, inclusive of
  * today (so 7 means today + 7 prior calendar days are selectable).
  */

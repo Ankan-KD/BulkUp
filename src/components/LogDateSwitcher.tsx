@@ -3,19 +3,8 @@
 import { useMemo, useState } from "react";
 import { CalendarClock, ChevronLeft, X } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { addDaysISO, MAX_BACKDATE_DAYS, todayISO } from "@/lib/utils";
+import { addDaysISO, MAX_BACKDATE_DAYS, relativeDayLabel, todayISO } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-
-function formatLabel(date: string, today: string): string {
-  if (date === today) return "Today";
-  if (date === addDaysISO(today, -1)) return "Yesterday";
-  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-}
 
 /**
  * Lets the user redirect every logging action (diet, quick-log/recent
@@ -58,7 +47,7 @@ export function LogDateSwitcher() {
         >
           <CalendarClock className="w-4 h-4 shrink-0" />
           <span className="flex-1 text-left">
-            Logging for {formatLabel(activeLogDate, today)} — everything you log goes here
+            Logging for {relativeDayLabel(activeLogDate)} — everything you log goes here
           </span>
           <span
             onClick={(e) => {
@@ -110,7 +99,7 @@ export function LogDateSwitcher() {
                         : "bg-[var(--bg)] text-[var(--text)] hover:bg-nova-500/10"
                     )}
                   >
-                    <span>{formatLabel(date, today)}</span>
+                    <span>{relativeDayLabel(date)}</span>
                     <span className={cn("text-xs", selected ? "text-white/80" : "text-[var(--text-muted)]")}>
                       {date}
                     </span>

@@ -12,7 +12,7 @@ import { MilestoneStatus, computeMilestoneStatuses } from "@/lib/milestones";
 import { computeCombinedTotals, foodProgress } from "@/lib/nutrition";
 import { useStore } from "@/lib/store";
 import { FoodCategory, FoodTemplate } from "@/lib/types";
-import { cn, isFoodScheduledOn } from "@/lib/utils";
+import { cn, isFoodScheduledOn, relativeDayLabel } from "@/lib/utils";
 import { Beef, Droplets, Flame, PieChart, Plus, Settings, Wheat } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -76,12 +76,25 @@ function formatConsumptionQty(quantity: number, unit: string): string {
 }
 
 export default function DashboardPage() {
-  const { settings, foods, recentFoods, today, history, weights, milestones, addWaterMl, recordMilestone, ready } =
-    useStore();
+  const {
+    settings,
+    foods,
+    recentFoods,
+    today,
+    viewDay,
+    history,
+    weights,
+    milestones,
+    addWaterMl,
+    recordMilestone,
+    ready,
+  } = useStore();
   const router = useRouter();
   const [celebrating, setCelebrating] = useState<MilestoneStatus | null>(null);
   const [manualLogOpen, setManualLogOpen] = useState(false);
   const [tab, setTab] = useState<"diet" | "consumption">("diet");
+  const isViewToday = viewDay.date === today.date;
+  const viewLabel = relativeDayLabel(viewDay.date);
 
   useEffect(() => {
     if (ready && !settings.onboarded) router.replace("/onboarding");
@@ -106,12 +119,12 @@ export default function DashboardPage() {
     }
   }, [ready, celebrating, milestoneStatuses, milestones, recordMilestone]);
 
-  const totals = useMemo(() => computeCombinedTotals(foods, recentFoods, today), [foods, recentFoods, today]);
+  const totals = useMemo(() => computeCombinedTotals(foods, recentFoods, viewDay), [foods, recentFoods, viewDay]);
   const activeFoods = useMemo(() => {
     return foods
-      .filter((f) => !f.archived && isFoodScheduledOn(f, today.date))
+      .filter((f) => !f.archived && isFoodScheduledOn(f, viewDay.date))
       .sort((a, b) => a.sortOrder - b.sortOrder);
-  }, [foods, today]);
+  }, [foods, viewDay]);
 
   const groupedActiveFoods = useMemo((): FoodGroup[] => {
     const standard = new Map<string, FoodTemplate[]>();
@@ -161,7 +174,7 @@ export default function DashboardPage() {
   const consumptionEntries = useMemo((): ConsumptionEntry[] => {
     const entries: ConsumptionEntry[] = [];
 
-    for (const log of today.recentLogs) {
+    for (const log of viewDay.recentLogs) {
       if (log.loggedQuantity <= 0) continue;
       const item = recentFoods.find((r) => r.id === log.recentFoodId);
       if (!item) continue;
@@ -177,7 +190,7 @@ export default function DashboardPage() {
     }
 
     for (const f of foods) {
-      const log = today.logs.find((l) => l.foodId === f.id);
+      const log = viewDay.logs.find((l) => l.foodId === f.id);
       if (!log) continue;
       const directQty = log.loggedQuantity - (log.contributedQuantity ?? 0);
       if (directQty <= 0) continue;
@@ -193,11 +206,11 @@ export default function DashboardPage() {
     }
 
     return entries;
-  }, [today, recentFoods, foods]);
+  }, [viewDay, recentFoods, foods]);
 
   const calorieProgress = settings.calorieGoal > 0 ? totals.calories / settings.calorieGoal : 0;
   const remaining = Math.max(0, settings.calorieGoal - totals.calories);
-  const waterProgress = settings.waterGoalMl > 0 ? Math.min(1, today.waterMl / settings.waterGoalMl) : 0;
+  const waterProgress = settings.waterGoalMl > 0 ? Math.min(1, viewDay.waterMl / settings.waterGoalMl) : 0;
   const status = progressStatus(settings.goalMode, totals.calories, settings.calorieGoal);
   const statusLabel = progressStatusLabel(status);
 
@@ -228,8 +241,8 @@ export default function DashboardPage() {
       <div className="mb-5 grid grid-cols-2 gap-1.5 rounded-xl2 bg-nova-700/6 dark:bg-nova-100/6 p-1">
         {(
           [
-            { key: "diet", label: "Today's Diet" },
-            { key: "consumption", label: "Today's Consumption" },
+            { key: "diet", label: isViewToday ? "Today's Diet" : `${viewLabel}'s Diet` },
+            { key: "consumption", label: isViewToday ? "Today's Consumption" : `${viewLabel}'s Consumption` },
           ] as const
         ).map((t) => (
           <button
@@ -255,7 +268,7 @@ export default function DashboardPage() {
                 {totals.calories}
                 <span className="text-base font-body font-normal text-[var(--text-muted)]"> / {settings.calorieGoal}</span>
               </p>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">kcal today</p>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">kcal logged</p>
             </GrowthRing>
             {statusLabel && (
               <span
@@ -303,7 +316,7 @@ export default function DashboardPage() {
                   Water
                 </span>
                 <span className="text-sm text-[var(--text-muted)]">
-                  {(today.waterMl / 1000).toFixed(1)}L / {(settings.waterGoalMl / 1000).toFixed(1)}L
+                  {(viewDay.waterMl / 1000).toFixed(1)}L / {(settings.waterGoalMl / 1000).toFixed(1)}L
                   <span className="ml-2 text-cyan-600 dark:text-cyan-300 font-semibold">+250ml</span>
                 </span>
               </button>
@@ -319,9 +332,11 @@ export default function DashboardPage() {
           {/* Today's Foods checklist */}
           <section className="mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="font-display text-lg font-semibold">Today&apos;s foods</h2>
+              <h2 className="font-display text-lg font-semibold">
+                {isViewToday ? "Today's foods" : `${viewLabel}'s foods`}
+              </h2>
               <span className="text-xs text-[var(--text-muted)]">
-                {activeFoods.filter((f) => foodProgress(f, today.logs.find((l) => l.foodId === f.id)?.loggedQuantity ?? 0) >= 1).length}/
+                {activeFoods.filter((f) => foodProgress(f, viewDay.logs.find((l) => l.foodId === f.id)?.loggedQuantity ?? 0) >= 1).length}/
                 {activeFoods.length} done
               </span>
             </div>
@@ -342,7 +357,7 @@ export default function DashboardPage() {
                         <FoodChecklistItem
                           key={food.id}
                           food={food}
-                          loggedQuantity={today.logs.find((l) => l.foodId === food.id)?.loggedQuantity ?? 0}
+                          loggedQuantity={viewDay.logs.find((l) => l.foodId === food.id)?.loggedQuantity ?? 0}
                         />
                       ))}
                     </div>
@@ -353,7 +368,7 @@ export default function DashboardPage() {
                 <Card className="p-6 text-center text-sm text-[var(--text-muted)]">
                   {foods.filter((f) => !f.archived).length === 0
                     ? "No foods yet. Add your regulars in the Foods tab to build your checklist."
-                    : "Nothing scheduled for today. Adjust a food's days in the Foods tab if that's not right."}
+                    : `Nothing scheduled for ${isViewToday ? "today" : viewLabel.toLowerCase()}. Adjust a food's days in the Foods tab if that's not right.`}
                 </Card>
               )}
             </div>
@@ -362,7 +377,9 @@ export default function DashboardPage() {
       ) : (
         <section className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-display text-lg font-semibold">What you&apos;ve eaten</h2>
+            <h2 className="font-display text-lg font-semibold">
+              {isViewToday ? "What you've eaten" : `What you ate — ${viewLabel}`}
+            </h2>
             <div className="flex items-center gap-2.5">
               <span className="text-xs text-[var(--text-muted)]">{consumptionEntries.length} logged</span>
               <button
@@ -398,8 +415,9 @@ export default function DashboardPage() {
             })}
             {consumptionEntries.length === 0 && (
               <Card className="p-6 text-center text-sm text-[var(--text-muted)]">
-                Nothing logged yet today. Describe what you ate with the + button below, or tap &quot;Log
-                manually&quot; above to search and log it yourself.
+                {isViewToday
+                  ? "Nothing logged yet today. Describe what you ate with the + button below, or tap \"Log manually\" above to search and log it yourself."
+                  : `Nothing logged yet for ${viewLabel.toLowerCase()}. Describe what you ate with the + button below, or tap "Log manually" above to search and log it yourself.`}
               </Card>
             )}
           </div>
