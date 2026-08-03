@@ -60,6 +60,25 @@ export function dayOfWeekFromISO(iso: string): number {
 }
 
 /**
+ * How many days back "Log for a past day" allows picking, inclusive of
+ * today (so 7 means today + 7 prior calendar days are selectable).
+ */
+export const MAX_BACKDATE_DAYS = 7;
+
+/**
+ * Clamps an ISO date into the allowed backdating window: [today - MAX_BACKDATE_DAYS, today].
+ * Used any time a "log for" date comes from user input, so a stale UI or
+ * bad value can never push a write outside the supported range.
+ */
+export function clampToBackdateWindow(iso: string): string {
+  const max = todayISO();
+  const min = addDaysISO(max, -MAX_BACKDATE_DAYS);
+  if (iso > max) return max;
+  if (iso < min) return min;
+  return iso;
+}
+
+/**
  * Whether a food should appear in the checklist on a given calendar date.
  * A one-off food (`dateOnly` set) shows up ONLY on that exact date, no
  * matter what `activeDays` says. A recurring food (`dateOnly` null) shows

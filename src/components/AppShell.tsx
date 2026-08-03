@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { BottomNav } from "./BottomNav";
 import { QuickLogSheet } from "./QuickLogSheet";
+import { LogDateSwitcher } from "./LogDateSwitcher";
 import { StoreProvider } from "@/lib/store";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Loader2 } from "lucide-react";
@@ -51,6 +52,7 @@ function Gate({ children }: { children: React.ReactNode }) {
   return (
     <StoreProvider>
       <div className="mx-auto max-w-md min-h-dvh flex flex-col">
+        {!hideChrome && <LogDateSwitcher />}
         <main className={hideChrome ? "flex-1" : "flex-1 pb-28"}>{children}</main>
         {!hideChrome && <BottomNav onLog={() => setLogOpen(true)} />}
         <QuickLogSheet open={logOpen} onClose={() => setLogOpen(false)} />

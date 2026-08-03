@@ -16,7 +16,7 @@ import {
   UserSettings,
   WeightEntry,
 } from "./types";
-import { addDaysISO, dayOfWeekFromISO, isFoodScheduledOn, todayISO } from "./utils";
+import { addDaysISO, clampToBackdateWindow, dayOfWeekFromISO, isFoodScheduledOn, todayISO } from "./utils";
 
 const DEFAULT_SETTINGS: UserSettings = {
   name: "",
@@ -233,6 +233,15 @@ interface LogRecentFoodInput {
 }
 
 interface StoreContextValue extends StoreShape {
+  // ── Backdated logging ────────────────────────────────────────────────
+  // The calendar date every logging action (diet, quick-log/recent foods,
+  // combos, water, weight) currently writes to. Defaults to real "today"
+  // and always resets back to it on app open/login — it is intentionally
+  // never persisted, so you can't silently stay in a past day for days.
+  activeLogDate: string;
+  // Clamped into [today - MAX_BACKDATE_DAYS, today] (see utils.ts) so a
+  // stale UI value can never write outside the supported window.
+  setActiveLogDate: (date: string) => void;
   updateSettings: (patch: Partial<UserSettings>) => void;
   addFood: (food: Omit<FoodTemplate, "id" | "sortOrder">) => void;
   updateFood: (id: string, patch: Partial<FoodTemplate>) => void;
@@ -279,8 +288,57 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  // Separate from `state` on purpose: `state` gets replaced wholesale by
+  // `load()`, which reruns on every realtime change (a log write, a combo
+  // edit, anything) — if activeLogDate lived inside `state` it would snap
+  // back to "today" the instant the first backdated write round-tripped
+  // through Supabase. Keeping it independent means it only resets when
+  // this effect itself reruns (mount / user change / explicit reset),
+  // never as a side effect of ordinary data syncing.
+  const [activeLogDate, setActiveLogDateState] = useState<string>(todayISO());
+  const activeLogDateRef = useRef(activeLogDate);
+  activeLogDateRef.current = activeLogDate;
+
+  function setActiveLogDate(date: string) {
+    setActiveLogDateState(clampToBackdateWindow(date));
+  }
+
+  // Reads whichever DayRecord a given date currently resolves to — `today`
+  // for the real calendar day, otherwise the matching (or a blank) entry
+  // in `history`. This is the ONE place that decides where a log lives;
+  // every logging function below goes through this (or its setState
+  // counterpart, updateDay) instead of touching `state.today`/`state.history`
+  // directly, so there's a single seam to get right rather than one per
+  // function.
+  function getDayRecord(date: string): DayRecord {
+    const s = stateRef.current;
+    if (date === todayISO()) return s.today;
+    return s.history.find((d) => d.date === date) ?? emptyDay(date);
+  }
+
+  // Immutable update of whichever DayRecord `date` resolves to, applied
+  // inside setState so it composes safely with concurrent updates.
+  function updateDay(date: string, updater: (d: DayRecord) => DayRecord) {
+    setState((s) => {
+      if (date === todayISO()) {
+        return { ...s, today: updater(s.today) };
+      }
+      const idx = s.history.findIndex((d) => d.date === date);
+      if (idx === -1) {
+        const history = [...s.history, updater(emptyDay(date))].sort((a, b) => a.date.localeCompare(b.date));
+        return { ...s, history };
+      }
+      const history = s.history.map((d, i) => (i === idx ? updater(d) : d));
+      return { ...s, history };
+    });
+  }
+
   // ── Initial load + realtime sync whenever the logged-in user changes ──
   useEffect(() => {
+    // New login/session: always start on real "today", regardless of
+    // whatever was selected before (e.g. a previous user, or a stale tab).
+    setActiveLogDateState(todayISO());
+
     if (!supabase || !user) {
       setState({
         settings: DEFAULT_SETTINGS,
@@ -554,19 +612,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // it (the normal direct-log path) preserves whatever contributed amount
   // was already on the row.
   function upsertTodayLog(foodId: string, quantity: number, contributedQuantity?: number) {
-    const date = todayISO();
+    const date = activeLogDateRef.current;
     const clamped = Math.max(0, quantity);
-    const existingBefore = stateRef.current.today.logs.find((l) => l.foodId === foodId);
+    const existingBefore = getDayRecord(date).logs.find((l) => l.foodId === foodId);
     const resolvedContributed =
       contributedQuantity !== undefined ? Math.max(0, contributedQuantity) : existingBefore?.contributedQuantity ?? 0;
-    setState((s) => {
-      const existing = s.today.logs.find((l) => l.foodId === foodId);
+    updateDay(date, (d) => {
+      const existing = d.logs.find((l) => l.foodId === foodId);
       const logs: DailyFoodLog[] = existing
-        ? s.today.logs.map((l) =>
+        ? d.logs.map((l) =>
             l.foodId === foodId ? { ...l, loggedQuantity: clamped, contributedQuantity: resolvedContributed } : l
           )
-        : [...s.today.logs, { foodId, loggedQuantity: clamped, contributedQuantity: resolvedContributed }];
-      return { ...s, today: { ...s.today, logs } };
+        : [...d.logs, { foodId, loggedQuantity: clamped, contributedQuantity: resolvedContributed }];
+      return { ...d, logs };
     });
     if (!supabase || !user) return;
     supabase
@@ -585,7 +643,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }
 
   function addQuantity(foodId: string, delta: number) {
-    const existing = stateRef.current.today.logs.find((l) => l.foodId === foodId);
+    const existing = getDayRecord(activeLogDateRef.current).logs.find((l) => l.foodId === foodId);
     const current = existing?.loggedQuantity ?? 0;
     upsertTodayLog(foodId, current + delta);
   }
@@ -607,7 +665,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       console.warn(`creditContribution: ignoring unknown foodId "${foodId}" — no matching Diet item.`);
       return;
     }
-    const existing = stateRef.current.today.logs.find((l) => l.foodId === foodId);
+    const existing = getDayRecord(activeLogDateRef.current).logs.find((l) => l.foodId === foodId);
     const currentLogged = existing?.loggedQuantity ?? 0;
     const currentContributed = existing?.contributedQuantity ?? 0;
     upsertTodayLog(foodId, currentLogged + delta, currentContributed + delta);
@@ -616,15 +674,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   function toggleBinary(foodId: string) {
     const food = stateRef.current.foods.find((f) => f.id === foodId);
     if (!food) return;
-    const existing = stateRef.current.today.logs.find((l) => l.foodId === foodId);
+    const existing = getDayRecord(activeLogDateRef.current).logs.find((l) => l.foodId === foodId);
     const isDone = (existing?.loggedQuantity ?? 0) >= food.targetQuantity;
     upsertTodayLog(foodId, isDone ? 0 : food.targetQuantity);
   }
 
   function addWaterMl(delta: number) {
-    const date = todayISO();
-    const next = Math.max(0, stateRef.current.today.waterMl + delta);
-    setState((s) => ({ ...s, today: { ...s.today, waterMl: next } }));
+    const date = activeLogDateRef.current;
+    const next = Math.max(0, getDayRecord(date).waterMl + delta);
+    updateDay(date, (d) => ({ ...d, waterMl: next }));
     if (!supabase || !user) return;
     supabase
       .from("daily_water")
@@ -635,14 +693,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }
 
   function addWeightEntry(weightKg: number) {
-    const date = todayISO();
+    const date = activeLogDateRef.current;
     setState((s) => {
       const others = s.weights.filter((w) => w.date !== date);
-      return {
-        ...s,
-        weights: [...others, { date, weightKg }].sort((a, b) => a.date.localeCompare(b.date)),
-        today: { ...s.today, weightKg },
-      };
+      const weights = [...others, { date, weightKg }].sort((a, b) => a.date.localeCompare(b.date));
+      if (date === todayISO()) {
+        return { ...s, weights, today: { ...s.today, weightKg } };
+      }
+      const idx = s.history.findIndex((d) => d.date === date);
+      const history =
+        idx === -1
+          ? [...s.history, { ...emptyDay(date), weightKg }].sort((a, b) => a.date.localeCompare(b.date))
+          : s.history.map((d, i) => (i === idx ? { ...d, weightKg } : d));
+      return { ...s, weights, history };
     });
     if (!supabase || !user) return;
     supabase
@@ -734,7 +797,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   function logCombo(id: string) {
     const combo = stateRef.current.combos.find((c) => c.id === id);
     if (!combo) return { loggedNames: [], skippedNames: [] };
-    const todayDate = stateRef.current.today.date;
+    // Scheduled-on-this-day check follows the date you're actually logging
+    // for (activeLogDate), not necessarily the real calendar day — e.g. a
+    // combo backdated to a Monday should honor that Monday's schedule.
+    const targetDate = activeLogDateRef.current;
     const loggedNames: string[] = [];
     const skippedNames: string[] = [];
     for (const item of combo.items) {
@@ -748,7 +814,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
       const food = stateRef.current.foods.find((f) => f.id === item.foodId);
       if (!food) continue; // food was deleted since the combo was saved — skip it silently
-      if (!isFoodScheduledOn(food, todayDate)) {
+      if (!isFoodScheduledOn(food, targetDate)) {
         // Not scheduled for today — skip rather than adding calories that
         // won't show up anywhere in "Today's Foods" (see known issue).
         skippedNames.push(food.name);
@@ -773,7 +839,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       );
       return null;
     }
-    const date = stateRef.current.today.date;
+    const date = activeLogDateRef.current;
 
     let recentFoodId = input.recentFoodId ?? null;
 
@@ -811,19 +877,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const clamped = Math.max(0, input.quantity);
     const hasContribution = !!(input.dietContributions && input.dietContributions.some((c) => c.foodId && c.quantity));
-    setState((s) => {
-      const existing = s.today.recentLogs.find((l) => l.recentFoodId === recentFoodId);
+    updateDay(date, (d) => {
+      const existing = d.recentLogs.find((l) => l.recentFoodId === recentFoodId);
       const recentLogs: RecentFoodLogEntry[] = existing
-        ? s.today.recentLogs.map((l) =>
+        ? d.recentLogs.map((l) =>
             l.recentFoodId === recentFoodId
               ? { ...l, loggedQuantity: l.loggedQuantity + clamped, mapped: l.mapped || hasContribution }
               : l
           )
-        : [...s.today.recentLogs, { recentFoodId: recentFoodId!, loggedQuantity: clamped, mapped: hasContribution }];
-      return { ...s, today: { ...s.today, recentLogs } };
+        : [...d.recentLogs, { recentFoodId: recentFoodId!, loggedQuantity: clamped, mapped: hasContribution }];
+      return { ...d, recentLogs };
     });
 
-    const currentEntry = stateRef.current.today.recentLogs.find((l) => l.recentFoodId === recentFoodId);
+    const currentEntry = getDayRecord(date).recentLogs.find((l) => l.recentFoodId === recentFoodId);
     const nextQuantity = (currentEntry?.loggedQuantity ?? 0) + clamped;
     const nextMapped = (currentEntry?.mapped ?? false) || hasContribution;
     supabase
@@ -915,6 +981,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const value: StoreContextValue = useMemo(
     () => ({
       ...state,
+      activeLogDate,
+      setActiveLogDate,
       updateSettings,
       addFood,
       updateFood,
@@ -937,7 +1005,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ready,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state, ready]
+    [state, ready, activeLogDate]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
