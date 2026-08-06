@@ -13,6 +13,7 @@ import {
   Mic,
   MicOff,
   Plus,
+  RotateCcw,
   Send,
   Sparkles,
   Zap,
@@ -607,9 +608,20 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
           </div>
         ) : tab === "coach" ? (
           <>
-            <p className="text-[13px] text-[var(--text-muted)] -mt-1 mb-3 shrink-0">
-              {coachSubheading(settings.goalMode)}
-            </p>
+            <div className="flex items-start justify-between gap-3 -mt-1 mb-3 shrink-0">
+              <p className="text-[13px] text-[var(--text-muted)]">
+                {coachSubheading(settings.goalMode)}
+              </p>
+              <button
+                onClick={resetCoachConversation}
+                disabled={coachMessages.length === 1}
+                aria-label="Start a new conversation"
+                title="Start a new conversation"
+                className="flex items-center gap-1 shrink-0 text-[11px] font-medium text-[var(--text-muted)] hover:text-[var(--text)] disabled:opacity-40 disabled:hover:text-[var(--text-muted)] transition-colors px-2 py-1 -mr-2 -mt-0.5 rounded-lg hover:bg-nova-700/8"
+              >
+                <RotateCcw className="w-3 h-3" /> New chat
+              </button>
+            </div>
             <div ref={coachScrollRef} className="flex-1 overflow-y-auto no-scrollbar space-y-3 pb-3">
               {coachMessages.map((m, i) => (
                 <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -712,14 +724,20 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
                 <Send className="w-[18px] h-[18px]" />
               </button>
             </div>
-            {coachMessages.length > 1 && (
-              <button onClick={resetCoachConversation} className="mt-2 text-[11px] text-[var(--text-muted)] self-center">
-                Start a new conversation
-              </button>
-            )}
           </>
         ) : (
         <>
+        <div className="flex items-center justify-end -mt-1 mb-1 shrink-0">
+          <button
+            onClick={resetConversation}
+            disabled={messages.length === 1}
+            aria-label="Start a new conversation"
+            title="Start a new conversation"
+            className="flex items-center gap-1 text-[11px] font-medium text-[var(--text-muted)] hover:text-[var(--text)] disabled:opacity-40 disabled:hover:text-[var(--text-muted)] transition-colors px-2 py-1 -mr-2 rounded-lg hover:bg-nova-700/8"
+          >
+            <RotateCcw className="w-3 h-3" /> New chat
+          </button>
+        </div>
         <div ref={scrollRef} className="flex-1 overflow-y-auto no-scrollbar space-y-3 pb-3">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -816,11 +834,6 @@ export function QuickLogSheet({ open, onClose }: { open: boolean; onClose: () =>
             <Send className="w-[18px] h-[18px]" />
           </button>
         </div>
-        {messages.length > 1 && (
-          <button onClick={resetConversation} className="mt-2 text-[11px] text-[var(--text-muted)] self-center">
-            Start a new conversation
-          </button>
-        )}
         </>
         )}
       </div>
